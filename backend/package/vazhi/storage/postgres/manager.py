@@ -9,7 +9,7 @@ from vazhi.storage.postgres.models import Base
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION_TABLE = "vazhi_schema_migrations"
-BUSINESS_SCHEMA_VERSION = 3
+BUSINESS_SCHEMA_VERSION = 4
 
 
 class PostgresManager:
@@ -95,6 +95,10 @@ class PostgresManager:
     async def create_business_tables(self) -> None:
         async with self.async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # create_all only creates missing TABLES, not missing columns on
+            # tables that already exist from a prior schema version — this is
+            # the one incremental step needed to add run_id (schema v3).
+            await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS run_id VARCHAR"))
         logger.info("Business tables created/checked")
 
 
