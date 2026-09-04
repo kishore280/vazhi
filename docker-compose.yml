@@ -42,6 +42,20 @@ services:
       timeout: 5s
       retries: 5
 
+  worker:
+    build: ./backend
+    command: arq worker_main.WorkerSettings
+    environment:
+      POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
+      REDIS_URL: "redis://redis:6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage-migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   storage-migrator:
     build:
       context: ./backend
