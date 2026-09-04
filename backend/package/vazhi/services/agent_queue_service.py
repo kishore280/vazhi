@@ -144,6 +144,15 @@ async def intake_request(
     )
 
 
+async def finalize_intake(intake: IntakeResult) -> None:
+    """Call after the caller's transaction commits: if a run was created,
+    hand it to ARQ. Never enqueue before commit."""
+    if intake.status == "dispatched" and intake.run_id:
+        from vazhi.services.run_dispatch import enqueue_agent_run
+
+        await enqueue_agent_run(intake.run_id)
+
+
 async def _existing_intake_result(request_repo: AgentRunRequestRepository, request) -> IntakeResult:
     return IntakeResult(
         request_id=request.request_id,

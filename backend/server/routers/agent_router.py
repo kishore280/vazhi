@@ -36,6 +36,8 @@ async def create_run(request: CreateRunRequest, uid:str = Depends(require_uid)):
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
         await db.commit()
+
+    await agent_queue_service.finalize_intake(intake)
     return {
         "request_id": request_id,
         "status": intake.status,
