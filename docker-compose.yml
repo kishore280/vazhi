@@ -10,6 +10,9 @@ services:
         condition: service_healthy
   postgres:
     image: postgres:16
+    container_name: postgres-vazhi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: vazhi
       POSTGRES_PASSWORD: vazhi_dev_password
@@ -23,3 +26,5 @@ services:
       timeout: 5s
       retries: 5
 
+volumes:
+  postgres_data:
