@@ -12,4 +12,6 @@ COPY package package
 
 COPY server server
 
+COPY worker_main.py .
+
 CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
