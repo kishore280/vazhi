@@ -8,6 +8,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      storage-migrator:
+        condition: service_completed_successfully
   postgres:
     image: postgres:16
     container_name: postgres-vazhi
@@ -25,6 +27,17 @@ services:
       start_period: 20s
       timeout: 5s
       retries: 5
+
+  storage-migrator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.migrator
+    environment:
+      POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   postgres_data:
