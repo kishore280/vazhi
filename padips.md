@@ -13,6 +13,20 @@
 - If you add a new file that a service needs (e.g. `worker_main.py`) but forget to `COPY` it in the Dockerfile, the image builds fine but the file is missing at runtime — `ModuleNotFoundError` only shows up when you actually try to run it.
 - `env_file: - ./backend/.env` in compose passes secrets into a container without baking them into the image (unlike `COPY .env .`, which would leak the secret into the image layers).
 - After rebuilding an image, old *containers* still run the old image until you `docker compose up -d --force-recreate` (or change something compose considers "config", which triggers auto-recreate).
+- **One image, multiple services, different `command:`** — `backend` and `worker` build from the exact same `Dockerfile`/image, but `worker`'s compose entry overrides the command to `arq worker_main.WorkerSettings` instead of the default `uvicorn ...`. Same codebase, two different running processes.
+- **A separate lightweight `Dockerfile.migrator`** for the one-shot migration service — installs only the 3 packages that `migrate.py` actually needs (sqlalchemy, asyncpg, pydantic-settings), not the full `requirements.txt` (torch, langgraph, etc.). That service's job is tiny and short-lived, so its image should be too.
+- **`docker compose cp <local file> <service>:<path>`** — copies a file straight into a *running* container without rebuilding the image. Handy for one-off manual test scripts you don't want baked into the real image.
+
+## Local venv vs Docker (easy to confuse)
+
+- The local `.venv` inside `backend/` is **only** for the editor/type-checker (Zed, pyright) to resolve imports and give autocomplete. It has **zero effect** on what actually runs — Docker builds its own environment from scratch inside the image, reading only `requirements.txt`. Installing a package in `.venv` and forgetting to add it to `requirements.txt` means your editor sees no error, but the Docker build/run will fail with `ModuleNotFoundError`.
+- `pyrightconfig.json`'s `"extraPaths": ["package"]` — tells pyright to also resolve imports from the `package/` folder, not just the project root. Needed because `vazhi.config` etc. live under `package/vazhi/`, not directly under `backend/`.
+- `requirements.txt` pins: `==` is normal exact-version pinning. `===` is a rare "arbitrary equality" operator (different from `==`) — easy typo, causes pip to fail resolving in ways that look like a version doesn't exist.
+
+## Editor tooling (Zed) — unrelated to the app itself but hit repeatedly
+
+- Zed scopes its Python interpreter/venv picker to whatever it considers the "sub-project root." A subfolder needs **its own `pyproject.toml` file to exist** (content doesn't matter — even just `[tool.ruff]`, no `[project]` table) for Zed to treat it as its own sub-project and show that folder's `.venv` in the picker. Without it, Zed scopes to the worktree root and won't offer a nested `backend/.venv` at all.
+- Separately: a nested `.venv` (one level below the worktree root) not being auto-detected, and the manual "Add Virtual Environment" picker being broken/incomplete, and toolchain selection not persisting across restarts — three distinct real upstream Zed bugs, not user error, confirmed via web search against Zed's own GitHub issues.
 
 ## FastAPI
 
@@ -47,6 +61,7 @@
 - **Partial unique index** (`postgresql_where=...`) — an index covering only rows matching a condition. Used to enforce "only one *active* run per thread" at the database level (finished runs drop out of the index automatically), instead of "only one run ever."
 - **Schema-version tracking, real vazhi's pattern**: a dedicated table (`vazhi_schema_migrations`) records which schema version is applied. A separate one-shot **migrator process** is the *only* thing allowed to create/alter tables, guarded by a Postgres **advisory lock** (`pg_advisory_lock`) so it's safe even if it gets run twice at once (e.g. container restart). The API/worker only ever *read-check* the version at startup (`require_current_schema`) and refuse to run on a mismatch — they never migrate themselves.
 - **Repository pattern**: one class per table, the *only* place that writes queries for that table. Everything else calls the repository, never writes raw `select(...)` itself.
+- **`BUSINESS_SCHEMA_VERSION` bump discipline**: every time a table or column is added to `models.py`, the version constant gets incremented too — that's the *only* signal that tells the migrator "there's new schema to apply." Forgetting to bump it means the migrator sees "already at current version" and silently skips creating the new table/column, even though the code now expects it to exist.
 
 ## Auth
 
@@ -67,6 +82,7 @@
 - **FIFO per thread, with a "steer" fast-lane**: normal messages queue in arrival order; a "steer" request always jumps to the front (used to interrupt an in-progress run — not fully wired up here, no active run yet to interrupt).
 - Three queue policies: `enqueue` (wait in line), `reject` (fail immediately if anything's already active/queued), `steer` (jump the line, only valid if something is already running).
 - "Commit to Postgres first, only then tell Redis about it" — a real run must exist in the database *before* a worker is told to look for it, or the worker could look for a row that isn't there yet.
+- **`finalize_intake()` as a deliberately separate step**: it's called *after* `db.commit()` and *outside* the `async with manager.get_session()` block that did the writing — not folded into `intake_request()` itself. This is the concrete enforcement of the rule above: the enqueue-to-Redis call physically cannot happen before the commit, because it's a separate function call that only runs once the `async with` block (and its commit) has already finished.
 
 ## ARQ / Redis
 
