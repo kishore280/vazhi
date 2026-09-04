@@ -9,7 +9,7 @@ from vazhi.storage.postgres.models import Base
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION_TABLE = "vazhi_schema_migrations"
-BUSINESS_SCHEMA_VERSION = 1
+BUSINESS_SCHEMA_VERSION = 2
 
 
 class PostgresManager:
