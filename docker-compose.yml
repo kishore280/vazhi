@@ -6,6 +6,8 @@ services:
     environment:
       POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
       REDIS_URL: "redis://redis:6379"
+    env_file:
+      - ./backend/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +50,8 @@ services:
     environment:
       POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
       REDIS_URL: "redis://redis:6379"
+    env_file:
+      - ./backend/.env
     depends_on:
       postgres:
         condition: service_healthy
