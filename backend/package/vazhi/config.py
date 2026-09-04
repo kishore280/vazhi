@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     dev_api_key: str = "vazhi-dev-key"
     dev_uid: str = "dev-user"
     postgres_dsn: str = "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
+    redis_url: str = "redis://redis:6379"
 
 
 settings = Settings()

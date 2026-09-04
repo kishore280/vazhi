@@ -3,3 +3,6 @@ uvicorn[standard]==0.52.4
 pydantic-settings==2.15.0
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.31.0
+redis==5.0.8
+arq==0.26.1
+

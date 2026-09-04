@@ -5,11 +5,14 @@ services:
       - "8000:8000"
     environment:
       POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
+      REDIS_URL: "redis://redis:6379"
     depends_on:
       postgres:
         condition: service_healthy
       storage-migrator:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
   postgres:
     image: postgres:16
     container_name: postgres-vazhi
@@ -23,6 +26,17 @@ services:
       - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vazhi"]
+      interval: 10s
+      start_period: 20s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
       interval: 10s
       start_period: 20s
       timeout: 5s
