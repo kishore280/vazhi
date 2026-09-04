@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vazhi.storage.postgres.models import Conversation, Message
 
+
 class ConversationRepository:
     def __init__(self, db:AsyncSession):
         self.db = db
@@ -22,7 +23,7 @@ class ConversationRepository:
         return result.scalar_one_or_none()
 
     async def get_or_create(
-        self, *, thread_id: str, uid: str, agent_slug: str, title: str | None = None
+        self, *, thread_id: str, uid: str, agent_slug: str, title: str | None = None #why therlaa
     ) -> Conversation:
         existing = await self.lock_by_thread_id(thread_id)
         if existing:
