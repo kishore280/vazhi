@@ -1,15 +1,24 @@
+from __future__ import annotations
+
 import logging
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from vazhi.storage.postgres.models import Base
 
+if TYPE_CHECKING:
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg_pool import AsyncConnectionPool
+
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION_TABLE = "vazhi_schema_migrations"
 BUSINESS_SCHEMA_VERSION = 4
+
+LANGGRAPH_CHECKPOINT_SETUP_LOCK_KEY = 94721802
 
 
 class PostgresManager:
@@ -25,6 +34,10 @@ class PostgresManager:
             class_=AsyncSession,
             expire_on_commit=False,
         )
+
+        self.langgraph_pool: AsyncConnectionPool | None = None
+        self.langgraph_checkpointer: AsyncPostgresSaver | None = None
+        self._langgraph_checkpointer_setup = False
 
     @asynccontextmanager
     async def get_session(self):
@@ -100,6 +113,55 @@ class PostgresManager:
             # the one incremental step needed to add run_id (schema v3).
             await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS run_id VARCHAR"))
         logger.info("Business tables created/checked")
+
+    def _ensure_langgraph_pool(self) -> AsyncConnectionPool:
+        if self.langgraph_pool is None:
+            from psycopg_pool import AsyncConnectionPool
+
+            langgraph_dsn = self.dsn.replace("+asyncpg", "").replace("+psycopg", "")
+            self.langgraph_pool = AsyncConnectionPool(
+                conninfo=langgraph_dsn,
+                max_size=10,
+                open=False,
+                kwargs={"autocommit": True},
+                check=AsyncConnectionPool.check_connection,
+            )
+        return self.langgraph_pool
+
+    def get_langgraph_checkpointer(self) -> AsyncPostgresSaver:
+        if self.langgraph_checkpointer is None:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+            pool = self._ensure_langgraph_pool()
+            #psycopg-pool prachna but plain is enough for us
+            self.langgraph_checkpointer = AsyncPostgresSaver(pool) # pyright: ignore[reportArgumentType]
+        return self.langgraph_checkpointer
+
+    async def setup_langgraph_checkpointer(self) -> AsyncPostgresSaver:
+        checkpointer = self.get_langgraph_checkpointer()
+        pool = self._ensure_langgraph_pool()
+        if not self._langgraph_checkpointer_setup:
+            if pool.closed:
+                await pool.open()
+            async with pool.connection() as connection:
+                await connection.execute(
+                    f"SELECT pg_advisory_lock({LANGGRAPH_CHECKPOINT_SETUP_LOCK_KEY})"  # pyright: ignore[reportCallIssue, reportArgumentType]
+                )
+                try:
+                    await checkpointer.setup()
+                finally:
+                    try:
+                        cursor = await connection.execute(
+                            f"SELECT pg_advisory_unlock({LANGGRAPH_CHECKPOINT_SETUP_LOCK_KEY})"  # pyright: ignore[reportCallIssue, reportArgumentType]
+                        )
+                        row = await cursor.fetchone()
+                        if not row or row[0] is not True:
+                            raise RuntimeError("Failed to release LangGraph checkpoint advisory lock")
+                    except BaseException:
+                        await connection.close()
+                        raise
+            self._langgraph_checkpointer_setup = True
+        return checkpointer
 
 
 _manager: PostgresManager | None = None

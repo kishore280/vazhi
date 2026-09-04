@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
 
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import AgentRunRepository
@@ -32,8 +33,12 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:  #arq ku venum ctx 
             logger.warning(f"execute_agent_run: input message {run.input_message_id} not found")
             return
 
-        agent = create_agent(model=get_chat_model(), tools=[])
-        result = await agent.ainvoke({"messages": [{"role": "user", "content": input_message.content}]})
+        checkpointer = await manager.setup_langgraph_checkpointer()
+        agent = create_agent(model=get_chat_model(), tools=[], checkpointer=checkpointer)
+        config: RunnableConfig = {"configurable": {"thread_id": run.conversation_thread_id}}
+        result = await agent.ainvoke(
+            {"messages": [{"role": "user", "content": input_message.content}]}, config=config
+        )
         reply_content = result["messages"][-1].content #last item of list ahm
 
         output_message = await message_repo.create(
