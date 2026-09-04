@@ -54,6 +54,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column()
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("agent_runs.id"), default=None, index=True)
     request_id: Mapped[str | None] = mapped_column(default=None, index=True)
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
 
@@ -66,6 +67,7 @@ class Message(Base):
             "role": self.role,
             "content": self.content,
             "created_at": _iso(self.created_at),
+            "run_id": self.run_id,
             "request_id": self.request_id,
             "metadata": self.extra_metadata or {},
         }
@@ -124,4 +126,57 @@ Index(
     AgentRun.conversation_thread_id,
     unique=True,
     postgresql_where=AgentRun.status.notin_(AGENT_RUN_TERMINAL_STATUSES),
+)
+
+
+AGENT_RUN_REQUEST_STATUS_QUEUED = "queued"
+AGENT_RUN_REQUEST_STATUS_DISPATCHED = "dispatched"
+AGENT_RUN_REQUEST_STATUS_CANCELLED = "cancelled"
+AGENT_RUN_REQUEST_STATUS_REJECTED = "rejected"
+
+
+class AgentRunRequest(Base):
+    __tablename__ = "agent_run_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    request_id: Mapped[str] = mapped_column(unique=True, index=True)
+    uid: Mapped[str] = mapped_column()
+    agent_slug: Mapped[str] = mapped_column()
+    conversation_thread_id: Mapped[str] = mapped_column()
+    queue_policy: Mapped[str] = mapped_column(default="enqueue")
+    status: Mapped[str] = mapped_column(default=AGENT_RUN_REQUEST_STATUS_QUEUED)
+    input_message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"))
+    dispatched_run_id: Mapped[str | None] = mapped_column(ForeignKey("agent_runs.id"), default=None)
+    error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+    dispatched_at: Mapped[datetime | None] = mapped_column(default=None)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now_naive, onupdate=utc_now_naive)
+
+    input_message: Mapped[Message] = relationship(foreign_keys=[input_message_id])
+    dispatched_run: Mapped[AgentRun | None] = relationship(foreign_keys=[dispatched_run_id])
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "uid": self.uid,
+            "agent_slug": self.agent_slug,
+            "thread_id": self.conversation_thread_id,
+            "queue_policy": self.queue_policy,
+            "status": self.status,
+            "input_message_id": self.input_message_id,
+            "dispatched_run_id": self.dispatched_run_id,
+            "error_message": self.error_message,
+            "created_at": _iso(self.created_at),
+            "dispatched_at": _iso(self.dispatched_at),
+        }
+
+
+Index(
+    "ix_agent_run_requests_queue",
+    AgentRunRequest.uid,
+    AgentRunRequest.agent_slug,
+    AgentRunRequest.conversation_thread_id,
+    AgentRunRequest.status,
+    AgentRunRequest.created_at,
+    AgentRunRequest.id,
 )
