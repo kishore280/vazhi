@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 
 class PostgresManager:
-    def __init__(self, dsn):
+    def __init__(self, dsn: str):
         self.dsn = dsn
         self.async_engine = create_async_engine(
             dsn,
