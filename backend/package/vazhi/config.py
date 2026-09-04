@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     dev_api_key: str = "vazhi-dev-key"
     dev_uid: str = "dev-user"
+    postgres_dsn: str = "postgresql+asyncpg://vazhi:vazhi_dev_password@localhost:5432/vazhi"
 
 
 settings = Settings()

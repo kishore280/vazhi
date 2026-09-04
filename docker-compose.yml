@@ -9,9 +9,10 @@ services:
   postgres:
     image: postgres:16
     environment:
-      - POSTGRES_USER=vazhi
-      - POSTGRES_PASSWORD=vazhi_dev_password
-      - POSTGRES_DB=vazhi
+      POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@localhost:5432/vazhi"
+      POSTGRES_USER: vazhi
+      POSTGRES_PASSWORD: vazhi_dev_password
+      POSTGRES_DB: vazhi
     ports:
       - "5432:5432"
     healthcheck:
