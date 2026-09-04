@@ -18,6 +18,13 @@ class PostgresManager:
         )
 _manager: PostgresManager | None = None
 
+
+@asynccontextmanager
+async def get_session(self):
+    async with self.async_session() as session:
+        yield session
+
+
 def get_postgres_manager() -> PostgresManager:
     global _manager
     if _manager is None:
