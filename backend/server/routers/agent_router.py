@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from vazhi.services import agent_queue_service
 from vazhi.storage.postgres.manager import get_postgres_manager
+from vazhi.storage.redis import get_async_redis, run_event_stream_key
 
 from server.auth import require_uid
+from server.sse_utils import (
+    SSE_HEARTBEAT_SECONDS,
+    SSE_MAX_CONNECTION_MINUTES,
+    SSE_POLL_INTERVAL_SECONDS,
+    format_heartbeat,
+    format_sse,
+)
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -46,3 +56,42 @@ async def create_run(request: CreateRunRequest, uid:str = Depends(require_uid)):
     }
 
 
+@router.get("/runs/{run_id}/events")
+async def stream_run_events(
+    run_id: str,
+    after_seq: str = "0-0",
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+    uid: str = Depends(require_uid),
+):
+    cursor = last_event_id or after_seq
+
+    async def event_source():
+        redis = get_async_redis()
+        last_id = cursor
+        elapsed = 0.0
+
+        while elapsed < SSE_MAX_CONNECTION_MINUTES * 60:
+            entries = await redis.xread(
+                {run_event_stream_key(run_id): last_id}, block=int(SSE_POLL_INTERVAL_SECONDS * 1000), count=50
+            )
+            if not entries:
+                elapsed += SSE_POLL_INTERVAL_SECONDS
+                if elapsed % SSE_HEARTBEAT_SECONDS < SSE_POLL_INTERVAL_SECONDS:
+                    yield format_heartbeat()
+                continue
+
+            for _stream_key, messages in entries:
+                for message_id, fields in messages:
+                    last_id = message_id
+                    payload = json.loads(fields.get("data", "{}"))
+                    event_type = payload.pop("event", "message")
+                    yield format_sse(payload, event=event_type, event_id=message_id)
+                    if event_type == "run-finished":
+                        return
+            elapsed = 0.0
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
