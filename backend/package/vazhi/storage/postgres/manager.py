@@ -16,13 +16,14 @@ class PostgresManager:
             class_=AsyncSession,
             expire_on_commit=False,
         )
+
+
+    @asynccontextmanager
+    async def get_session(self):
+        async with self.async_session() as session:
+            yield session
+            
 _manager: PostgresManager | None = None
-
-
-@asynccontextmanager
-async def get_session(self):
-    async with self.async_session() as session:
-        yield session
 
 
 def get_postgres_manager() -> PostgresManager:
