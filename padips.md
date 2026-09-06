@@ -98,6 +98,14 @@
 - **`create_agent()`** (from `langchain.agents`) — a high-level convenience function. Give it a model + tools, it builds and runs a LangGraph graph for you without hand-wiring the graph yourself.
 - Groq (and other providers) expose an **OpenAI-compatible API** — so you don't need a Groq-specific package, just `ChatOpenAI` pointed at Groq's `base_url`. Swappable by config, not code.
 
+## LangGraph middleware pattern
+
+- A middleware is a class (`AgentMiddleware` subclass) with hook methods that run at specific points in the agent's loop — e.g. `abefore_model` (right before calling the LLM), `aafter_model` (right after). Multiple middlewares stack — `create_agent(middleware=[...])` takes a list, and they wrap each other in order.
+- `@hook_config(can_jump_to=["end"])` — declares that this specific hook is *allowed* to short-circuit the whole graph straight to a named point (here, `"end"`) instead of continuing normally. Returning `{"jump_to": "end"}` from the hook body actually does it.
+- **`context_schema` vs `context`** — two different things passed at two different times. `create_agent(..., context_schema=VazhiContext)` just declares *the shape* of context this agent expects (a type declaration, checked once at agent-build time). The actual *instance* of that context — the real data for this specific run — gets passed later, at `agent.astream(..., context=context)` or `.ainvoke(..., context=context)`. Inside a middleware hook, that instance shows up as `runtime.context`.
+- Why build the context object fresh per run instead of once: it holds per-run data (`run_id`, `thread_id`, `uid`) that's different every time `execute_agent_run` is called — it can't be a shared/global object.
+- Middlewares can reach back into your own app's services from inside a hook (e.g. `SteerMiddleware` calls `should_end_run_for_steer()`, a Postgres-querying function you wrote) — a middleware isn't limited to pure LangGraph-internal logic, it's a real extension point into your own business logic.
+
 ## Checkpointer (cross-turn memory)
 
 - Without a checkpointer, every `agent.ainvoke(...)` call starts completely fresh — zero memory of prior turns, even on the "same" conversation.
@@ -120,6 +128,8 @@
 - Third-party library **type stubs can be narrower than the actual runtime behavior** — e.g. `psycopg`'s `Connection.execute()` stub only declares a `Template` argument type, but the real implementation also accepts a plain `str`. When you've verified at runtime that it works, a `# pyright: ignore[...]` comment is the correct fix — not restructuring working code to satisfy an overly-strict stub.
 - A field typed `int | None` can't be passed directly to a function expecting plain `int` — even if you "know" it's always set in practice, add an explicit `if x is None: return` guard so the type checker (and any real edge case) is handled honestly.
 - Annotating a plain dict literal with its expected `TypedDict` type (e.g. `config: RunnableConfig = {...}`) is often the actual fix for "dict not assignable to X" errors — same value at runtime, just a type hint the checker can now recognize.
+- **List invariance strikes again**: `middleware=[SteerMiddleware()]` inline fails type-checking against a parameter expecting `list[AgentMiddleware[Any, Any, Any]]`, even though `SteerMiddleware` *is* an `AgentMiddleware`. Same root cause as the `AsyncConnectionPool` issue earlier — Python's generic lists don't auto-widen. Fix: assign to a separately-annotated variable first (`middleware: list[AgentMiddleware[Any, Any, Any]] = [SteerMiddleware()]`), then pass that variable in.
+- **Editor autocomplete can suggest a completely wrong import** — typing `Any` and accepting the first autocomplete suggestion pulled in `from re import A` (the regex `ASCII` flag, not even the same name!) and `from langgraph.channels.untracked_value import Any` (a random internal module that happens to also define something called `Any`) instead of the real `from typing import Any`. Both would likely still "work" by accident here (only used in an erased type hint), but always double-check *where* an auto-import actually came from, especially for common short names like `Any`.
 
 ## Git / project hygiene
 
