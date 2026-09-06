@@ -1,0 +1,31 @@
+# features.md
+
+- [x] Auth
+- [ ] Frontend send
+- [x] Queue intake
+- [x] Worker execution (real LLM calls, leases, heartbeats, retries)
+- [x] LangGraph checkpointer (cross-turn memory)
+- [x] SSE event stream (live token streaming)
+- [ ] Sandbox client
+- [ ] Sandbox provisioner microservice
+- [ ] Symlink-safe workspace filesystem
+- [ ] Live file viewer + artifacts
+- [ ] Attachments
+- [x] Schema migration system
+- [x] SteerMiddleware
+- [ ] Filesystem middleware
+- [ ] Memory middleware
+- [x] Subagent task middleware
+- [ ] Summary middleware
+- [ ] TokenUsage middleware
+- [ ] ImageInputCompatibility middleware + OCR tool
+- [ ] Tool Approval middleware
+- [ ] Model abstraction layer (embed/rerank)
+- [ ] Langfuse tracing
+- [ ] MCP service + DynamicTool middleware
+- [ ] Configurable approval mode + full history reload
+- [ ] Usage dashboard
+- [ ] Message feedback
+- [ ] Knowledge-base HTTP surface
+- [ ] Knowledge graph subsystem
+- [ ] RAG eval pipeline
