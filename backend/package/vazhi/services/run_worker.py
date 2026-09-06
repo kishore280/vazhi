@@ -134,6 +134,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
     error_message: str | None = None
     output_text = ""
     output_message_id: int | None = None
+    token_usage: dict | None = None
     try:
         async with manager.get_session() as db:
             run = await AgentRunRepository(db).get_run(run_id)
@@ -168,19 +169,33 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
         )
         config: RunnableConfig = {"configurable": {"thread_id": run.conversation_thread_id}}
 
-        async for message_chunk, _metadata in agent.astream(
+        async for mode, chunk in agent.astream(
             {"messages": [{"role": "user", "content": input_message.content}]},
             config=config,
             context=context,
-            stream_mode="messages",
+            stream_mode=["updates", "messages"],
         ):
             if await _is_cancel_requested(run_id):
                 status = "cancelled"
                 break
-            delta = getattr(message_chunk, "content", "") or ""
-            if delta:
-                output_text += delta
-                await _publish_event(run_id, "message-delta", {"content": delta})
+
+            if mode == "messages":
+                message_chunk, _metadata = chunk
+                delta = getattr(message_chunk, "content", "") or ""
+                if delta:
+                    output_text += delta
+                    await _publish_event(run_id, "message-delta", {"content": delta})
+                continue
+
+            if not isinstance(chunk, dict):
+                continue
+            for node_output in chunk.values():
+                if not isinstance(node_output, dict):
+                    continue
+                node_token_usage = node_output.get("token_usage")
+                run_usage = node_token_usage.get("run") if isinstance(node_token_usage, dict) else None
+                if isinstance(run_usage, dict):
+                    token_usage = run_usage
         else:
             status = "completed"
 
@@ -222,6 +237,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
             worker_id=owner_token,
             error_message=error_message,
             output_message_id=output_message_id,
+            token_usage=token_usage,
         )
         if finalized:
             await AgentRunAttemptRepository(db).close(
