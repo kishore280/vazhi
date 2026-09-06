@@ -144,6 +144,30 @@
 - **Retryable vs permanent failure**: a database connection blip (`OperationalError`) or timeout is *not the agent's fault* — retrying probably succeeds. A logic bug in your own code retrying won't help. `_is_retryable_exception()` draws that line explicitly; only the retryable category gets `release_lease_for_retry()` (reset to `"pending"`, so ARQ redelivers it as a new attempt) instead of a permanent `"failed"`.
 - **`reconcile_expired_run_leases()` is a periodic sweep, not per-run logic.** It doesn't run as part of any one run's lifecycle — it's a separate function, on a timer, scanning *all* runs for ones stuck at `"running"` with an expired, unrenewed lease. This is the actual safety net for "the worker process itself crashed" (heartbeat loop and worker_id checks handle graceful failures; this handles the ungraceful ones).
 
+## Multi-mode streaming (`stream_mode=["updates", "messages"]`)
+
+- `agent.astream(..., stream_mode="messages")` alone only shows you token-by-token text deltas — it does NOT show you anything a middleware writes into LangGraph *state* via a `Command` update (e.g. `TokenUsageMiddleware` writing a usage snapshot). That only shows up in `"updates"`-mode chunks.
+- Passing a **list** of modes (`stream_mode=["updates", "messages"]`) makes `astream` yield `(mode, chunk)` tuples instead of just `chunk` — you check `if mode == "messages":` vs `if mode == "updates":` (or just check `isinstance(chunk, dict)`) to know which kind of chunk you're looking at, and handle each differently in the same loop.
+- **This is exactly why the loop had to grow, not because the earlier single-mode version was wrong.** When the loop was first written, nothing wrote to state via `Command` — `"messages"` alone was the correct, complete subset for what existed then. Once `TokenUsageMiddleware` was added (writes state via `Command`), the loop needed `"updates"` mode too, or that data would just be silently dropped. Same "build the exact subset needed now, expand exactly when the next piece needs it" pattern used everywhere else in this project — not a bug fixed, a natural growth point.
+- `"updates"`-mode chunks are `{node_name: node_output_dict}` — you loop over `chunk.values()` (or `.items()` if you need the node name) and pull whatever key you're interested in (e.g. `node_output.get("token_usage")`) out of each node's output dict.
+
+## Observability / token accounting (TokenUsageMiddleware)
+
+- The middleware doesn't return usage data to your code directly — it writes a snapshot into LangGraph **state** after every model call (`wrap_model_call` returns an `ExtendedModelResponse` wrapping a `Command(update={"token_usage": snapshot})`). Your worker loop has to actively watch for that state update (see multi-mode streaming above) and pull the numbers out — nothing pushes them to you automatically.
+- **Real vs. estimated tokens**: the snapshot includes both. `usage_metadata` on the model's response `AIMessage` is the *real*, provider-reported number (what you actually get billed for). Everything else in the snapshot (context-window usage ratio, message counts, etc.) is *estimated* via `count_tokens_approximately` — a rough heuristic, not what the provider actually counted. The middleware clearly separates the two rather than pretending an estimate is exact.
+- **Run-level vs Thread-level aggregation**: `before_agent` resets the Run-level total to zero at the start of every run, but *keeps* the Thread-level total running across every run that's ever happened on that thread — one counter answers "how much did *this* turn cost," the other answers "how much has this whole conversation cost so far."
+- Real usage data only lands in your own database (`AgentRun.token_usage` column) if your worker code explicitly captures it from the stream and passes it into whatever function persists the run's final state (`mark_terminal(..., token_usage=token_usage)` here) — building the middleware alone does nothing to your own tables until you wire that last step through.
+
+## Full conversation history reload
+
+- Separate from SSE/resume — SSE only ever restores the *currently streaming* run; a full history reload (`GET /thread/{id}/history`) is for a cold page load, reconstructing the entire conversation from scratch by querying every `Message` row for that thread, ordered by time.
+- Joining in `AgentRun` timing (`run_started_at`/`run_finished_at`) onto each message via its `run_id` lets a frontend show "this reply took N seconds" without a separate request per message — one query, one join, not N+1 queries.
+
+## "Port but don't wire in" — a real, valid finished state
+
+- Not every ported file needs to be *active* to be "done." Real vazhi's own `tool_approval.py` exists, is fully correct, and is deliberately NOT wired into the active middleware list — because the plumbing it depends on (persisted approval state, an API endpoint to submit a decision, a frontend UI) doesn't exist yet in the reference implementation either. Wiring a HumanInTheLoopMiddleware in without a way to ever resume it would make every gated tool call hang the run forever.
+- Matching a reference project exactly sometimes means matching its *incompleteness*, not just its finished features — building a file that exists-but-inert, because that's genuinely what the source does at this point in its own development, not skipping it and not force-completing it either.
+
 ## ARQ cron jobs
 
 - `arq.cron(func, second={0, 15, 30, 45})` — schedules a function to run at those specific seconds of every minute (here: every 15 seconds), independent of any job queue — it's a timer, not a queued task.
