@@ -13,6 +13,7 @@ from langchain_core.runnables import RunnableConfig
 
 from vazhi.agents.context import VazhiContext
 from vazhi.agents.middlewares.steer import SteerMiddleware
+from vazhi.agents.middlewares.subagent_task import create_subagent_task_middleware
 from vazhi.agents.state import VazhiAgentState
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import AgentRunRepository
@@ -57,6 +58,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:  #arq ku venum ctx 
         owner_token = f"{WORKER_ID}:{job_try}:{uuid.uuid4().hex}"
         lease_expires_at = utc_now_naive() + timedelta(seconds=settings.run_lease_ttl_seconds)
         acquired = await run_repo.mark_running(run_id, worker_id=owner_token, lease_expires_at=lease_expires_at)
+        await db.commit()
         if not acquired:
             logger.info(f"Run {run_id} could not be acquired (already running/terminal) — skipping")
             return
