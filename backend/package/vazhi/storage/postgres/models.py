@@ -86,12 +86,16 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(index=True, default="pending")
     request_id: Mapped[str] = mapped_column(unique=True, index=True)
     conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id"), default=None, index=True)
+    parent_run_id: Mapped[str | None] = mapped_column(ForeignKey("agent_runs.id"), default=None, index=True)
     input_message_id: Mapped[int | None] = mapped_column(default=None)
     output_message_id: Mapped[int | None] = mapped_column(default=None)
     last_event_id: Mapped[str | None] = mapped_column(default=None)
     token_usage: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     error_type: Mapped[str | None] = mapped_column(default=None)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    worker_id: Mapped[str | None] = mapped_column(default=None)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(default=None)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(default=None)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
@@ -106,6 +110,7 @@ class AgentRun(Base):
             "status": self.status,
             "request_id": self.request_id,
             "conversation_id": self.conversation_id,
+            "parent_run_id": self.parent_run_id,
             "input_message_id": self.input_message_id,
             "output_message_id": self.output_message_id,
             "last_event_id": self.last_event_id,
@@ -127,6 +132,7 @@ Index(
     unique=True,
     postgresql_where=AgentRun.status.notin_(AGENT_RUN_TERMINAL_STATUSES),
 )
+Index("ix_agent_runs_status_lease_expires", AgentRun.status, AgentRun.lease_expires_at)
 
 
 AGENT_RUN_REQUEST_STATUS_QUEUED = "queued"
@@ -180,3 +186,47 @@ Index(
     AgentRunRequest.created_at,
     AgentRunRequest.id,
 )
+
+
+class Agent(Base):
+    __tablename__ = "agents"
+
+    slug: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+    kind: Mapped[str] = mapped_column(default="subagent")  # main/subagent
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slug": self.slug,
+            "name": self.name,
+            "description": self.description,
+            "kind": self.kind,
+            "config_json": self.config_json or {},
+            "created_at": _iso(self.created_at),
+        }
+
+
+class SubagentThread(Base):
+    __tablename__ = "subagent_threads"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    uid: Mapped[str] = mapped_column(index=True)
+    parent_run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.id"), index=True)
+    parent_thread_id: Mapped[str] = mapped_column()
+    child_thread_id: Mapped[str] = mapped_column(unique=True, index=True)
+    subagent_slug: Mapped[str] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "uid": self.uid,
+            "parent_run_id": self.parent_run_id,
+            "parent_thread_id": self.parent_thread_id,
+            "child_thread_id": self.child_thread_id,
+            "subagent_slug": self.subagent_slug,
+            "created_at": _iso(self.created_at),
+        }
