@@ -19,11 +19,11 @@
 - [ ] Summary middleware
 - [x] TokenUsage middleware
 - [ ] ImageInputCompatibility middleware + OCR tool
-- [ ] Tool Approval middleware
+- [x] Tool Approval middleware
 - [ ] Model abstraction layer (embed/rerank)
 - [ ] Langfuse tracing
 - [ ] MCP service + DynamicTool middleware
-- [ ] Configurable approval mode + full history reload
+- [x] Configurable approval mode + full history reload
 - [ ] Usage dashboard
 - [ ] Message feedback
 - [ ] Knowledge-base HTTP surface
