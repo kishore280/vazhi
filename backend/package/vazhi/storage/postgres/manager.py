@@ -112,6 +112,12 @@ class PostgresManager:
             # tables that already exist from a prior schema version — this is
             # the one incremental step needed to add run_id (schema v3).
             await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS run_id VARCHAR"))
+            # Same incremental-column need as run_id above, this time for
+            # schema v5's subagent/worker-leasing columns on agent_runs.
+            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS parent_run_id VARCHAR"))
+            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS worker_id VARCHAR"))
+            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP"))
+            await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP"))
         logger.info("Business tables created/checked")
 
     def _ensure_langgraph_pool(self) -> AsyncConnectionPool:
