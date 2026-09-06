@@ -13,6 +13,7 @@ from vazhi.repositories.conversation_repository import (
     ConversationRepository,
     MessageRepository,
 )
+from vazhi.storage.postgres.manager import get_postgres_manager
 
 logger = logging.getLogger(__name__)
 
@@ -212,3 +213,16 @@ async def _dispatch_ready_head(
         return None
 
     return head.request_id, run_id
+
+async def should_end_run_for_steer(run_id:str) -> bool:
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        run = await AgentRunRepository(db).get_run(run_id)
+        if run is None:
+            return False
+        pending = await AgentRunRequestRepository(db).get_pending_steer(
+            uid=run.uid,
+            agent_slug=run.agent_slug,
+            conversation_thread_id=run.conversation_thread_id,
+        )
+        return pending is not None

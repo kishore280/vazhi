@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.runnables import RunnableConfig
 
+from vazhi.agents.context import VazhiContext
+from vazhi.agents.middlewares.steer import SteerMiddleware
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import AgentRunRepository
 from vazhi.repositories.conversation_repository import MessageRepository
@@ -41,13 +45,27 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:  #arq ku venum ctx 
             return
 
         checkpointer = await manager.setup_langgraph_checkpointer()
-        agent = create_agent(model=get_chat_model(), tools=[], checkpointer=checkpointer)
+        context = VazhiContext(
+            run_id=run.id,
+            thread_id=run.conversation_thread_id,
+            uid=run.uid,
+            request_id=run.request_id,
+        )
+        middleware: list[AgentMiddleware[Any, Any, Any]] = [SteerMiddleware()]
+        agent = create_agent(
+            model=get_chat_model(),
+            tools=[],
+            middleware=middleware,
+            context_schema=VazhiContext,
+            checkpointer=checkpointer,
+        )
         config: RunnableConfig = {"configurable": {"thread_id": run.conversation_thread_id}}
 
         output_text = ""
         async for message_chunk, _metadata in agent.astream(
             {"messages": [{"role": "user", "content": input_message.content}]},
             config=config,
+            context=context,
             stream_mode="messages",
         ):
             delta = getattr(message_chunk, "content", "") or ""
