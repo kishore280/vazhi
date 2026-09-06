@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Text
+from sqlalchemy import JSON, ForeignKey, Index, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -133,6 +133,44 @@ Index(
     postgresql_where=AgentRun.status.notin_(AGENT_RUN_TERMINAL_STATUSES),
 )
 Index("ix_agent_runs_status_lease_expires", AgentRun.status, AgentRun.lease_expires_at)
+
+
+class AgentRunAttempt(Base):
+    """Immutable fact record: one row per lease a worker takes on a run."""
+
+    __tablename__ = "agent_run_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"))
+    attempt_no: Mapped[int] = mapped_column()
+    worker_id: Mapped[str] = mapped_column()
+    started_at: Mapped[datetime] = mapped_column()
+    heartbeat_at: Mapped[datetime | None] = mapped_column(default=None)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    outcome: Mapped[str | None] = mapped_column(default=None)
+    error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now_naive, onupdate=utc_now_naive)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "attempt_no", name="uq_agent_run_attempts_run_attempt_no"),
+        Index("ix_agent_run_attempts_open", "run_id", "finished_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "run_id": self.run_id,
+            "attempt_no": self.attempt_no,
+            "worker_id": self.worker_id,
+            "started_at": _iso(self.started_at),
+            "heartbeat_at": _iso(self.heartbeat_at),
+            "lease_expires_at": _iso(self.lease_expires_at),
+            "finished_at": _iso(self.finished_at),
+            "outcome": self.outcome,
+            "error_message": self.error_message,
+        }
 
 
 AGENT_RUN_REQUEST_STATUS_QUEUED = "queued"

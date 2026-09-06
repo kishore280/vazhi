@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
     run_lease_ttl_seconds: int = 60
+    run_max_retries: int = 3
 
 
 settings = Settings()
