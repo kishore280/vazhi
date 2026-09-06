@@ -17,6 +17,7 @@ from sqlalchemy.exc import OperationalError
 from vazhi.agents.context import VazhiContext
 from vazhi.agents.middlewares.steer import SteerMiddleware
 from vazhi.agents.middlewares.subagent_task import create_subagent_task_middleware
+from vazhi.agents.middlewares.token_usage import TokenUsageMiddleware
 from vazhi.agents.state import VazhiAgentState
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import AgentRunAttemptRepository, AgentRunRepository
@@ -156,6 +157,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
         subagent_middleware = await create_subagent_task_middleware(context)
         if subagent_middleware is not None:
             middleware.append(subagent_middleware)
+        middleware.append(TokenUsageMiddleware())
         agent = create_agent(
             model=get_chat_model(),
             tools=[],
