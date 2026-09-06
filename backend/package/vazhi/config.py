@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379"
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
+    run_lease_ttl_seconds: int = 60
 
 
 settings = Settings()
