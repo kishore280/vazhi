@@ -27,6 +27,7 @@ class CreateRunRequest(BaseModel):
     thread_id:str
     content : str
     queue_policy: str = "enqueue"  #specify panlana queue deefault ah irkatummm
+    tool_approval_mode: str | None = None
 
 @router.post("/runs")
 async def create_run(request: CreateRunRequest, uid:str = Depends(require_uid)):
@@ -103,3 +104,12 @@ async def cancel_request(request_id: str, uid: str = Depends(require_uid)):
     if not cancelled:
         raise HTTPException(status_code=404, detail="Request not found or not cancellable")
     return {"cancelled": True}
+
+
+@router.get("/thread/{thread_id}/history")
+async def get_thread_history(thread_id: str, uid: str = Depends(require_uid)):
+    from vazhi.services.chat_history_service import get_thread_history_view
+
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        return await get_thread_history_view(thread_id=thread_id, current_uid=uid, db=db)
