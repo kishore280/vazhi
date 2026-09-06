@@ -23,7 +23,7 @@ from vazhi.repositories.agent_run_repository import AgentRunAttemptRepository, A
 from vazhi.repositories.conversation_repository import MessageRepository
 from vazhi.storage.postgres.manager import get_postgres_manager
 from vazhi.storage.postgres.models import utc_now_naive
-from vazhi.storage.redis import get_async_redis, run_event_stream_key
+from vazhi.storage.redis import get_async_redis, run_cancel_key, run_event_stream_key
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,27 @@ def _owner_token(job_try: int) -> str:
 async def _publish_event(run_id: str, event_type: str, payload: dict) -> None:
     redis = get_async_redis()
     await redis.xadd(run_event_stream_key(run_id), {"data": json.dumps({"event": event_type, **payload})})
+
+
+async def _is_cancel_requested(run_id: str) -> bool:
+    redis = get_async_redis()
+    return bool(await redis.get(run_cancel_key(run_id)))
+
+
+async def _cancel_active_children(run_id: str) -> None:
+    manager = get_postgres_manager()
+    cancelled: list[str] = []
+    async with manager.get_session() as db:
+        repo = AgentRunRepository(db)
+        children = await repo.get_children(run_id)
+        for child in children:
+            if await repo.request_cancel(child.id):
+                cancelled.append(child.id)
+        await db.commit()
+    for child_id in cancelled:
+        redis = get_async_redis()
+        await redis.set(run_cancel_key(child_id), "1", ex=3600)
+        await _cancel_active_children(child_id)  # cascade through the whole execution tree
 
 
 async def _heartbeat_loop(run_id: str, owner_token: str, ttl_seconds: int, stop: asyncio.Event) -> None:
@@ -151,21 +172,26 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
             context=context,
             stream_mode="messages",
         ):
+            if await _is_cancel_requested(run_id):
+                status = "cancelled"
+                break
             delta = getattr(message_chunk, "content", "") or ""
             if delta:
                 output_text += delta
                 await _publish_event(run_id, "message-delta", {"content": delta})
-        status = "completed"
+        else:
+            status = "completed"
 
-        async with manager.get_session() as db:
-            output_message = await MessageRepository(db).create(
-                conversation_id=input_message.conversation_id,
-                role="assistant",
-                content=output_text,
-            )
-            output_message.run_id = run.id
-            output_message_id = output_message.id
-            await db.commit()
+        if status == "completed" and output_text:
+            async with manager.get_session() as db:
+                output_message = await MessageRepository(db).create(
+                    conversation_id=input_message.conversation_id,
+                    role="assistant",
+                    content=output_text,
+                )
+                output_message.run_id = run.id
+                output_message_id = output_message.id
+                await db.commit()
 
     except Exception as e:  # noqa: BLE001
         if _is_retryable_exception(e) and not _is_last_try(ctx):
@@ -188,18 +214,23 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
     await heartbeat_task
 
     async with manager.get_session() as db:
-        await AgentRunRepository(db).mark_terminal(
+        finalized = await AgentRunRepository(db).mark_terminal(
             run_id,
             status=status,
             worker_id=owner_token,
             error_message=error_message,
             output_message_id=output_message_id,
         )
-        await AgentRunAttemptRepository(db).close(run_id, worker_id=owner_token, outcome=status, error_message=error_message)
+        if finalized:
+            await AgentRunAttemptRepository(db).close(
+                run_id, worker_id=owner_token, outcome=status, error_message=error_message
+            )
         await db.commit()
 
-    await _publish_event(run_id, "run-finished", {"status": status, "message_id": output_message_id})
-    logger.info(f"Run {run_id} finished with status={status}")
+    if finalized:
+        await _publish_event(run_id, "run-finished", {"status": status, "message_id": output_message_id})
+        await _cancel_active_children(run_id)
+        logger.info(f"Run {run_id} finished with status={status}")
 
 
 async def reconcile_expired_run_leases() -> list[str]:
