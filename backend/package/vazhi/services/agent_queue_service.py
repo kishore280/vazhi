@@ -230,3 +230,15 @@ async def should_end_run_for_steer(run_id:str) -> bool:
             conversation_thread_id=run.conversation_thread_id,
         )
         return pending is not None
+
+
+async def cancel_queued_request(*, request_id: str, uid: str) -> bool:
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        repo = AgentRunRequestRepository(db)
+        request = await repo.lock_by_request_id(request_id)
+        if request is None or request.uid != str(uid):
+            return False
+        result = await repo.mark_cancelled(request_id)
+        await db.commit()
+        return result is not None

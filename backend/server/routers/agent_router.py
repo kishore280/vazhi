@@ -95,3 +95,11 @@ async def stream_run_events(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/requests/{request_id}/cancel")
+async def cancel_request(request_id: str, uid: str = Depends(require_uid)):
+    cancelled = await agent_queue_service.cancel_queued_request(request_id=request_id, uid=uid)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Request not found or not cancellable")
+    return {"cancelled": True}
