@@ -46,6 +46,7 @@ async def intake_request(
     thread_id: str,
     content: str,
     queue_policy: str = "enqueue",
+    parent_run_id: str | None = None,
 ) -> IntakeResult:
     policy = validate_queue_policy(queue_policy)
     uid_str = str(uid)
@@ -116,6 +117,7 @@ async def intake_request(
             agent_slug=agent_slug,
             thread_id=thread_id,
             conversation_id=conversation.id,
+            parent_run_id=parent_run_id,
             expected_request_id=request_id if policy == "reject" else None,
         )
         if dispatched is not None and dispatched[0] == request_id:
@@ -173,6 +175,7 @@ async def _dispatch_ready_head(
     agent_slug: str,
     thread_id: str,
     conversation_id: int,
+    parent_run_id: str | None = None,
     expected_request_id: str | None = None,
 ) -> tuple[str, str] | None:
     request_repo = AgentRunRequestRepository(db)
@@ -200,6 +203,7 @@ async def _dispatch_ready_head(
             request_id=head.request_id,
             conversation_id=conversation_id,
             input_message_id=head.input_message_id,
+            parent_run_id=parent_run_id,
         )
         message = await MessageRepository(db).get(head.input_message_id)
         if message is not None:
