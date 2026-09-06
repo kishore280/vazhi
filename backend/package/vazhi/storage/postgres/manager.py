@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION_TABLE = "vazhi_schema_migrations"
-BUSINESS_SCHEMA_VERSION = 6
+BUSINESS_SCHEMA_VERSION = 7
 
 LANGGRAPH_CHECKPOINT_SETUP_LOCK_KEY = 94721802
 
@@ -118,6 +118,18 @@ class PostgresManager:
             await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS worker_id VARCHAR"))
             await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMP"))
             await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP"))
+            # create_all also never adds indexes to a table that already
+            # existed before the index was added to the model — same class
+            # of gap as the columns above, this time for schema v5's
+            # parent_run_id (column-level index=True) and the composite
+            # status/lease_expires_at index.
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_runs_parent_run_id ON agent_runs (parent_run_id)"))
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_runs_status_lease_expires "
+                    "ON agent_runs (status, lease_expires_at)"
+                )
+            )
         logger.info("Business tables created/checked")
 
     def _ensure_langgraph_pool(self) -> AsyncConnectionPool:
