@@ -17,7 +17,7 @@
 - [ ] Memory middleware
 - [x] Subagent task middleware
 - [ ] Summary middleware
-- [ ] TokenUsage middleware
+- [x] TokenUsage middleware
 - [ ] ImageInputCompatibility middleware + OCR tool
 - [ ] Tool Approval middleware
 - [ ] Model abstraction layer (embed/rerank)
