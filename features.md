@@ -21,7 +21,7 @@
 - [ ] ImageInputCompatibility middleware + OCR tool
 - [x] Tool Approval middleware
 - [ ] Model abstraction layer (embed/rerank)
-- [ ] Langfuse tracing
+- [x] Langfuse tracing
 - [ ] MCP service + DynamicTool middleware
 - [x] Configurable approval mode + full history reload
 - [ ] Usage dashboard
