@@ -22,6 +22,7 @@ from vazhi.agents.state import VazhiAgentState
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import AgentRunAttemptRepository, AgentRunRepository
 from vazhi.repositories.conversation_repository import MessageRepository
+from vazhi.services.langfuse_service import build_run_context, flush_langfuse
 from vazhi.storage.postgres.manager import get_postgres_manager
 from vazhi.storage.postgres.models import utc_now_naive
 from vazhi.storage.redis import get_async_redis, run_cancel_key, run_event_stream_key
@@ -135,6 +136,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
     output_text = ""
     output_message_id: int | None = None
     token_usage: dict | None = None
+    trace_id: str | None = None
     try:
         async with manager.get_session() as db:
             run = await AgentRunRepository(db).get_run(run_id)
@@ -168,6 +170,21 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
             checkpointer=checkpointer,
         )
         config: RunnableConfig = {"configurable": {"thread_id": run.conversation_thread_id}}
+
+        trace_context = build_run_context(
+            user_id=run.uid,
+            thread_id=run.conversation_thread_id,
+            agent_id="vazhi-demo",
+            request_id=run.request_id,
+            operation="agent_run",
+        )
+        if trace_context.callbacks:
+            config["callbacks"] = list(trace_context.callbacks)
+        if trace_context.metadata:
+            config["metadata"] = dict(trace_context.metadata)
+        if trace_context.tags:
+            config["tags"] = list(trace_context.tags)
+        trace_id = trace_context.trace_id
 
         async for mode, chunk in agent.astream(
             {"messages": [{"role": "user", "content": input_message.content}]},
@@ -205,6 +222,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
                     conversation_id=input_message.conversation_id,
                     role="assistant",
                     content=output_text,
+                    extra_metadata={"langfuse_trace_id": trace_id} if trace_id else None,
                 )
                 output_message.run_id = run.id
                 output_message_id = output_message.id
@@ -229,6 +247,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
 
     stop_heartbeat.set()
     await heartbeat_task
+    await asyncio.to_thread(flush_langfuse)
 
     async with manager.get_session() as db:
         finalized = await AgentRunRepository(db).mark_terminal(
