@@ -10,7 +10,7 @@
 - [ ] Sandbox provisioner microservice
 - [ ] Symlink-safe workspace filesystem
 - [ ] Live file viewer + artifacts
-- [ ] Attachments
+- [x] Attachments
 - [x] Schema migration system
 - [x] SteerMiddleware
 - [ ] Filesystem middleware
