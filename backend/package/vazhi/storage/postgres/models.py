@@ -59,6 +59,7 @@ class Message(Base):
     extra_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+    attachments: Mapped[list[Attachment]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -70,6 +71,7 @@ class Message(Base):
             "run_id": self.run_id,
             "request_id": self.request_id,
             "metadata": self.extra_metadata or {},
+            "attachments": [a.to_dict() for a in self.attachments] if self.attachments else [],
         }
 
 
@@ -243,6 +245,30 @@ class Agent(Base):
             "description": self.description,
             "kind": self.kind,
             "config_json": self.config_json or {},
+            "created_at": _iso(self.created_at),
+        }
+
+
+class Attachment(Base):
+    __tablename__ = "attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), index=True)
+    filename: Mapped[str] = mapped_column()
+    content_type: Mapped[str | None] = mapped_column(default=None)
+    size_bytes: Mapped[int] = mapped_column()
+    minio_object_key: Mapped[str] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    message: Mapped[Message] = relationship(back_populates="attachments")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "message_id": self.message_id,
+            "filename": self.filename,
+            "content_type": self.content_type,
+            "size_bytes": self.size_bytes,
             "created_at": _iso(self.created_at),
         }
 
