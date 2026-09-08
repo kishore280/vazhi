@@ -15,4 +15,5 @@ deepagents==0.7.9
 langfuse==4.14.5
 minio==7.2.9
 python-multipart==0.0.12
+langchain-mcp-adapters==0.3.2
 

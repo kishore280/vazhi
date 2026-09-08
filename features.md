@@ -22,7 +22,7 @@
 - [x] Tool Approval middleware
 - [ ] Model abstraction layer (embed/rerank)
 - [x] Langfuse tracing
-- [ ] MCP service + DynamicTool middleware
+- [x] MCP service + DynamicTool middleware
 - [x] Configurable approval mode + full history reload
 - [ ] Usage dashboard
 - [ ] Message feedback

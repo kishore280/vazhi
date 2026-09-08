@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     minio_access_key: str = "vazhi"
     minio_secret_key: str = "vazhi_dev_password"
     minio_bucket: str = "vazhi-attachments"
+    vazhi_mcp_servers: str = ""
 
 
 settings = Settings()
