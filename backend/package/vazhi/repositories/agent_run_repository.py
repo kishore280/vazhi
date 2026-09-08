@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vazhi.storage.postgres.models import (
@@ -177,6 +177,43 @@ class AgentRunRepository:
         if run is not None:
             run.last_event_id = event_id
             await self.db.flush()
+
+    async def get_usage_stats(self, *, uid: str, days: int = 14) -> dict:
+        tokens_expr = func.coalesce(
+            cast(AgentRun.token_usage["total"]["total_tokens"].as_integer(), Integer), 0
+        )
+
+        by_status_result = await self.db.execute(
+            select(AgentRun.status, func.count().label("run_count"), func.sum(tokens_expr).label("token_total"))
+            .where(AgentRun.uid == uid)
+            .group_by(AgentRun.status)
+        )
+        by_status_rows = by_status_result.all()
+
+        since = utc_now_naive() - timedelta(days=days)
+        by_day_result = await self.db.execute(
+            select(
+                func.date(AgentRun.created_at).label("day"),
+                func.count().label("run_count"),
+                func.sum(tokens_expr).label("token_total"),
+            )
+            .where(AgentRun.uid == uid, AgentRun.created_at >= since)
+            .group_by(func.date(AgentRun.created_at))
+            .order_by(func.date(AgentRun.created_at))
+        )
+        by_day_rows = by_day_result.all()
+
+        return {
+            "total_runs": sum(row.run_count for row in by_status_rows),
+            "total_tokens": sum(int(row.token_total or 0) for row in by_status_rows),
+            "by_status": {
+                row.status: {"count": row.run_count, "tokens": int(row.token_total or 0)} for row in by_status_rows
+            },
+            "by_day": [
+                {"day": row.day.isoformat(), "count": row.run_count, "tokens": int(row.token_total or 0)}
+                for row in by_day_rows
+            ],
+        }
 
 
 class AgentRunAttemptRepository:

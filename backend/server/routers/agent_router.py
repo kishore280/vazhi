@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from vazhi.repositories.agent_run_repository import AgentRunRepository
 from vazhi.services import agent_queue_service
 from vazhi.storage.postgres.manager import get_postgres_manager
 from vazhi.storage.redis import get_async_redis, run_event_stream_key
@@ -113,3 +114,10 @@ async def get_thread_history(thread_id: str, uid: str = Depends(require_uid)):
     manager = get_postgres_manager()
     async with manager.get_session() as db:
         return await get_thread_history_view(thread_id=thread_id, current_uid=uid, db=db)
+
+
+@router.get("/stats")
+async def get_usage_stats(days: int = 14, uid: str = Depends(require_uid)):
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        return await AgentRunRepository(db).get_usage_stats(uid=uid, days=days)
