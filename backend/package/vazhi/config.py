@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-20b"
     run_lease_ttl_seconds: int = 60
     run_max_retries: int = 3
+    langfuse_enabled: bool = True
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = ""
 
 
 settings = Settings()
