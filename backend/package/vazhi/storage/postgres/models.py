@@ -60,6 +60,7 @@ class Message(Base):
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     attachments: Mapped[list[Attachment]] = relationship(back_populates="message", cascade="all, delete-orphan")
+    feedbacks: Mapped[list[MessageFeedback]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +73,28 @@ class Message(Base):
             "request_id": self.request_id,
             "metadata": self.extra_metadata or {},
             "attachments": [a.to_dict() for a in self.attachments] if self.attachments else [],
+        }
+
+
+class MessageFeedback(Base):
+    __tablename__ = "message_feedbacks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), index=True)
+    uid: Mapped[str] = mapped_column(index=True)
+    rating: Mapped[str] = mapped_column()  # "like" | "dislike"
+    reason: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    message: Mapped[Message] = relationship(back_populates="feedbacks")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "message_id": self.message_id,
+            "rating": self.rating,
+            "reason": self.reason,
+            "created_at": _iso(self.created_at),
         }
 
 

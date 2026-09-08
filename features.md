@@ -24,7 +24,7 @@
 - [x] Langfuse tracing
 - [x] MCP service + DynamicTool middleware
 - [x] Configurable approval mode + full history reload
-- [ ] Usage dashboard
+- [x] Usage dashboard
 - [ ] Message feedback
 - [ ] Knowledge-base HTTP surface
 - [ ] Knowledge graph subsystem

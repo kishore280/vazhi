@@ -121,3 +121,28 @@ async def get_usage_stats(days: int = 14, uid: str = Depends(require_uid)):
     manager = get_postgres_manager()
     async with manager.get_session() as db:
         return await AgentRunRepository(db).get_usage_stats(uid=uid, days=days)
+
+
+class MessageFeedbackRequest(BaseModel):
+    rating: str
+    reason: str | None = None
+
+
+@router.post("/message/{message_id}/feedback")
+async def submit_message_feedback(message_id: int, body: MessageFeedbackRequest, uid: str = Depends(require_uid)):
+    from vazhi.services.feedback_service import submit_message_feedback_view
+
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        return await submit_message_feedback_view(
+            message_id=message_id, rating=body.rating, reason=body.reason, db=db, current_uid=uid
+        )
+
+
+@router.get("/message/{message_id}/feedback")
+async def get_message_feedback(message_id: int, uid: str = Depends(require_uid)):
+    from vazhi.services.feedback_service import get_message_feedback_view
+
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        return await get_message_feedback_view(message_id=message_id, db=db, current_uid=uid)
