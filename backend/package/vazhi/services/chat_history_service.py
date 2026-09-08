@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from vazhi.storage.postgres.models import AgentRun, Conversation, Message
 
@@ -16,7 +17,10 @@ async def get_thread_history_view(*, thread_id: str, current_uid: str, db: Async
         raise HTTPException(status_code=404, detail="Conversation thread not found")
 
     messages_result = await db.execute(
-        select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.asc())
+        select(Message)
+        .options(selectinload(Message.attachments))
+        .where(Message.conversation_id == conversation.id)
+        .order_by(Message.created_at.asc())
     )
     messages = list(messages_result.scalars().all())
 

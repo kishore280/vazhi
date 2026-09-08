@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vazhi.storage.postgres.models import Conversation, Message
+from vazhi.storage.postgres.models import Attachment, Conversation, Message
 
 
 class ConversationRepository:
@@ -65,4 +65,26 @@ class MessageRepository:
 
     async def get(self, message_id: int) -> Message | None:
         return await self.db.get(Message, message_id)
-        
+
+
+class AttachmentRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create(
+        self, *, message_id: int, filename: str, content_type: str | None, size_bytes: int, minio_object_key: str
+    ) -> Attachment:
+        attachment = Attachment(
+            message_id=message_id,
+            filename=filename,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            minio_object_key=minio_object_key,
+        )
+        self.db.add(attachment)
+        await self.db.flush()
+        return attachment
+
+    async def get(self, attachment_id: int) -> Attachment | None:
+        return await self.db.get(Attachment, attachment_id)
+
