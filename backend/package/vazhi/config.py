@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_base_url: str = ""
+    minio_endpoint: str = "rustfs:9000"
+    minio_access_key: str = "vazhi"
+    minio_secret_key: str = "vazhi_dev_password"
+    minio_bucket: str = "vazhi-attachments"
 
 
 settings = Settings()

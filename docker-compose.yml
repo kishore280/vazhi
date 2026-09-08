@@ -6,6 +6,7 @@ services:
     environment:
       POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
       REDIS_URL: "redis://redis:6379"
+      MINIO_ENDPOINT: "rustfs:9000"
     env_file:
       - ./backend/.env
     depends_on:
@@ -14,6 +15,8 @@ services:
       storage-migrator:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      rustfs:
         condition: service_healthy
   postgres:
     image: postgres:16
@@ -44,12 +47,31 @@ services:
       timeout: 5s
       retries: 5
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: vazhi
+      RUSTFS_SECRET_KEY: vazhi_dev_password
+    command: /data
+    volumes:
+      - rustfs_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      start_period: 20s
+      timeout: 5s
+      retries: 5
+
   worker:
     build: ./backend
     command: arq worker_main.WorkerSettings
     environment:
       POSTGRES_DSN: "postgresql+asyncpg://vazhi:vazhi_dev_password@postgres:5432/vazhi"
       REDIS_URL: "redis://redis:6379"
+      MINIO_ENDPOINT: "rustfs:9000"
     env_file:
       - ./backend/.env
     depends_on:
@@ -58,6 +80,8 @@ services:
       storage-migrator:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      rustfs:
         condition: service_healthy
 
   storage-migrator:
@@ -73,3 +97,4 @@ services:
 
 volumes:
   postgres_data:
+  rustfs_data:
