@@ -218,6 +218,33 @@ async def _dispatch_ready_head(
 
     return head.request_id, run_id
 
+async def steer_queued_request(*, request_id: str, uid: str) -> IntakeResult:
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        repo = AgentRunRequestRepository(db)
+        request = await repo.lock_by_request_id(request_id)
+        if request is None or request.uid != str(uid):
+            raise ValueError("Request not found")
+        if request.status != "queued" or request.queue_policy != "enqueue":
+            raise ValueError("Only a normally-queued request can be promoted to steer")
+
+        pending = await repo.get_pending_steer(
+            uid=request.uid, agent_slug=request.agent_slug, conversation_thread_id=request.conversation_thread_id
+        )
+        if pending is not None and pending.request_id != request_id:
+            raise ValueError("Thread already has a pending steer request")
+
+        active_run = await AgentRunRepository(db).get_active_run_by_thread_for_user(
+            uid=request.uid, agent_slug=request.agent_slug, conversation_thread_id=request.conversation_thread_id
+        )
+        if active_run is None:
+            raise ValueError("Nothing running to steer")
+
+        request.queue_policy = "steer"
+        await db.commit()
+        return await _existing_intake_result(repo, request)
+
+
 async def should_end_run_for_steer(run_id:str) -> bool:
     manager = get_postgres_manager()
     async with manager.get_session() as db:

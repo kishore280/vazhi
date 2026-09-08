@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from vazhi.repositories.agent_run_repository import AgentRunRepository
 from vazhi.services import agent_queue_service
 from vazhi.storage.postgres.manager import get_postgres_manager
+from vazhi.storage.postgres.models import AGENT_RUN_TERMINAL_STATUSES
 from vazhi.storage.redis import get_async_redis, run_event_stream_key
 
 from server.auth import require_uid
@@ -99,12 +100,31 @@ async def stream_run_events(
     )
 
 
+@router.post("/requests/{request_id}/steer")
+async def steer_request(request_id: str, uid: str = Depends(require_uid)):
+    try:
+        result = await agent_queue_service.steer_queued_request(request_id=request_id, uid=uid)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return {"request_id": result.request_id, "status": result.status, "queue_policy": result.queue_policy}
+
+
 @router.post("/requests/{request_id}/cancel")
 async def cancel_request(request_id: str, uid: str = Depends(require_uid)):
     cancelled = await agent_queue_service.cancel_queued_request(request_id=request_id, uid=uid)
     if not cancelled:
         raise HTTPException(status_code=404, detail="Request not found or not cancellable")
     return {"cancelled": True}
+
+
+@router.get("/runs/{run_id}")
+async def get_run(run_id: str, uid: str = Depends(require_uid)):
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        run = await AgentRunRepository(db).get_run(run_id)
+    if run is None or run.uid != uid:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {"run": run.to_dict()}
 
 
 @router.get("/thread/{thread_id}/history")
@@ -114,6 +134,23 @@ async def get_thread_history(thread_id: str, uid: str = Depends(require_uid)):
     manager = get_postgres_manager()
     async with manager.get_session() as db:
         return await get_thread_history_view(thread_id=thread_id, current_uid=uid, db=db)
+
+
+@router.get("/thread/{thread_id}/active_run")
+async def get_thread_active_run(thread_id: str, uid: str = Depends(require_uid)):
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        run_repo = AgentRunRepository(db)
+        run = await run_repo.get_active_run_by_thread_for_user(
+            agent_slug=DEFAULT_AGENT_SLUG, conversation_thread_id=thread_id, uid=uid
+        )
+        if run is None:
+            latest = await run_repo.get_latest_run(uid=uid, agent_slug=DEFAULT_AGENT_SLUG, conversation_thread_id=thread_id)
+            if latest is not None and latest.status == "awaiting_approval":
+                run = latest
+    if run is None or (run.status in AGENT_RUN_TERMINAL_STATUSES and run.status != "awaiting_approval"):
+        return {"run": None}
+    return {"run": run.to_dict()}
 
 
 @router.get("/stats")

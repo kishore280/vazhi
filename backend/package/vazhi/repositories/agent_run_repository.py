@@ -57,6 +57,19 @@ class AgentRunRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_latest_run(self, *, uid: str, agent_slug: str, conversation_thread_id: str) -> AgentRun | None:
+        result = await self.db.execute(
+            select(AgentRun)
+            .where(
+                AgentRun.uid == str(uid),
+                AgentRun.agent_slug == agent_slug,
+                AgentRun.conversation_thread_id == conversation_thread_id,
+            )
+            .order_by(AgentRun.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     #queue la irukradha edukum ig
     async def create_run(
         self,
