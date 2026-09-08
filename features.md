@@ -25,7 +25,7 @@
 - [x] MCP service + DynamicTool middleware
 - [x] Configurable approval mode + full history reload
 - [x] Usage dashboard
-- [ ] Message feedback
+- [x] Message feedback
 - [ ] Knowledge-base HTTP surface
 - [ ] Knowledge graph subsystem
 - [ ] RAG eval pipeline
