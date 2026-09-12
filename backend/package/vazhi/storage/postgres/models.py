@@ -296,6 +296,24 @@ class Attachment(Base):
         }
 
 
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_bases"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    kb_id: Mapped[str] = mapped_column(unique=True, index=True)
+    name: Mapped[str] = mapped_column(index=True)
+    created_by: Mapped[str] = mapped_column(index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kb_id": self.kb_id,
+            "name": self.name,
+            "created_by": self.created_by,
+            "created_at": _iso(self.created_at),
+        }
+
+
 class SubagentThread(Base):
     __tablename__ = "subagent_threads"
 

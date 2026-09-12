@@ -71,6 +71,7 @@ def get_or_create_collection() -> Collection:
         embed_model = get_embedding_model()
         fields = [
             FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=100, is_primary=True),
+            FieldSchema(name="kb_id", dtype=DataType.VARCHAR, max_length=100),
             FieldSchema(
                 name="content",
                 dtype=DataType.VARCHAR,
@@ -101,11 +102,13 @@ def get_or_create_collection() -> Collection:
                 "params": {"inverted_index_algo": "DAAT_MAXSCORE"},
             },
         )
+        collection.create_index("kb_id", {"index_type": "INVERTED"})
     collection.load()
     return collection
 
 
 async def add_document(
+    kb_id: str,
     doc_id: str,
     content: str,
     filename: str = "document.md",
@@ -123,16 +126,18 @@ async def add_document(
 
     embed_model = get_embedding_model()
     ids = [r["id"] for r in records]
+    kb_ids = [kb_id for _ in records]
     contents = [r["content"] for r in records]
     vectors = await asyncio.to_thread(embed_model.encode, contents)
 
     collection = await asyncio.to_thread(get_or_create_collection)
-    await asyncio.to_thread(collection.insert, [ids, contents, vectors])
+    await asyncio.to_thread(collection.insert, [ids, kb_ids, contents, vectors])
     await asyncio.to_thread(collection.flush)
 
 
-async def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
+async def search(kb_id: str, query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
     collection = await _run_milvus_query_io(get_or_create_collection)
+    kb_expr = f'kb_id == "{kb_id}"'
 
     if mode == "vector":
         embed_model = get_embedding_model()
@@ -143,6 +148,7 @@ async def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[
             anns_field="embedding",
             param={"metric_type": _VECTOR_METRIC_TYPE, "params": {"nprobe": 10}},
             limit=top_k,
+            expr=kb_expr,
             output_fields=["content"],
         )
         return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
@@ -154,6 +160,7 @@ async def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[
             anns_field=_CONTENT_SPARSE_FIELD,
             param={"metric_type": "BM25", "params": {"drop_ratio_search": 0.2}},
             limit=top_k,
+            expr=kb_expr,
             output_fields=["content"],
         )
         return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
@@ -165,12 +172,14 @@ async def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[
         anns_field="embedding",
         param={"metric_type": _VECTOR_METRIC_TYPE, "params": {"nprobe": 10}},
         limit=top_k,
+        expr=kb_expr,
     )
     bm25_request = AnnSearchRequest(
         data=[query_text],
         anns_field=_CONTENT_SPARSE_FIELD,
         param={"metric_type": "BM25", "params": {"drop_ratio_search": 0.2}},
         limit=top_k,
+        expr=kb_expr,
     )
     results = await _run_milvus_query_io(
         collection.hybrid_search,

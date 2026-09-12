@@ -1,13 +1,15 @@
 from langchain_core.tools import tool
+from langgraph.prebuilt.tool_node import ToolRuntime
 
-from vazhi.knowledge.milvus_store import search as kb_search
 from vazhi.models.rerank import get_reranker
+from vazhi.services.knowledge_service import query_knowledge_base
 
 
 @tool
-async def query_kb(query_text: str) -> str:
-    """Search the knowledge base for information relevant to the query."""
-    results = await kb_search(query_text)
+async def query_kb(kb_id: str, query_text: str, runtime: ToolRuntime) -> str:
+    """Search a knowledge base for information relevant to the query."""
+    uid = str(getattr(runtime.context, "uid", "") or "")
+    results = await query_knowledge_base(uid=uid, kb_id=kb_id, query_text=query_text)
     if not results:
         return "No relevant documents found."
 
