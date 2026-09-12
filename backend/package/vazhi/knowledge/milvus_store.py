@@ -1,3 +1,6 @@
+import asyncio
+import weakref
+
 from pymilvus import (
     AnnSearchRequest,
     Collection,
@@ -18,6 +21,39 @@ _COLLECTION_NAME = "vazhi_kb"
 _CONTENT_SPARSE_FIELD = "content_sparse"
 _CONTENT_ANALYZER_PARAMS = {"type": "english"}
 _VECTOR_METRIC_TYPE = "COSINE"
+
+MILVUS_QUERY_OFFLOAD_LIMIT = 8
+_milvus_query_offload_semaphore_refs: dict[int, "weakref.ref[asyncio.Semaphore]"] = {}
+
+
+def _get_milvus_query_offload_semaphore() -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    ref = _milvus_query_offload_semaphore_refs.get(key)
+    semaphore = ref() if ref is not None else None
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(MILVUS_QUERY_OFFLOAD_LIMIT)
+
+        def cleanup(_ref, key=key):
+            _milvus_query_offload_semaphore_refs.pop(key, None)
+
+        _milvus_query_offload_semaphore_refs[key] = weakref.ref(semaphore, cleanup)
+    return semaphore
+
+
+async def _run_milvus_query_io(func, /, *args, **kwargs):
+    semaphore = _get_milvus_query_offload_semaphore()
+    await semaphore.acquire()
+    task = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+
+    def release_capacity(completed_task: asyncio.Task):
+        semaphore.release()
+        if completed_task.cancelled():
+            return
+        completed_task.exception()
+
+    task.add_done_callback(release_capacity)
+    return await asyncio.shield(task)
 
 
 def _connect() -> None:
@@ -68,21 +104,22 @@ def get_or_create_collection() -> Collection:
     return collection
 
 
-def add_document(doc_id: str, content: str) -> None:
+async def add_document(doc_id: str, content: str) -> None:
     embed_model = get_embedding_model()
-    vector = embed_model.encode(content)[0]
-    collection = get_or_create_collection()
-    collection.insert([[doc_id], [content], [vector]])
-    collection.flush()
+    vector = (await asyncio.to_thread(embed_model.encode, content))[0]
+    collection = await asyncio.to_thread(get_or_create_collection)
+    await asyncio.to_thread(collection.insert, [[doc_id], [content], [vector]])
+    await asyncio.to_thread(collection.flush)
 
 
-def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
-    collection = get_or_create_collection()
+async def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
+    collection = await _run_milvus_query_io(get_or_create_collection)
 
     if mode == "vector":
         embed_model = get_embedding_model()
-        query_vector = embed_model.encode(query_text)[0]
-        results = collection.search(
+        query_vector = (await _run_milvus_query_io(embed_model.encode, query_text))[0]
+        results = await _run_milvus_query_io(
+            collection.search,
             data=[query_vector],
             anns_field="embedding",
             param={"metric_type": _VECTOR_METRIC_TYPE, "params": {"nprobe": 10}},
@@ -92,7 +129,8 @@ def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
         return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
 
     if mode == "keyword":
-        results = collection.search(
+        results = await _run_milvus_query_io(
+            collection.search,
             data=[query_text],
             anns_field=_CONTENT_SPARSE_FIELD,
             param={"metric_type": "BM25", "params": {"drop_ratio_search": 0.2}},
@@ -102,7 +140,7 @@ def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
         return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
 
     embed_model = get_embedding_model()
-    query_vector = embed_model.encode(query_text)[0]
+    query_vector = (await _run_milvus_query_io(embed_model.encode, query_text))[0]
     vector_request = AnnSearchRequest(
         data=[query_vector],
         anns_field="embedding",
@@ -115,7 +153,8 @@ def search(query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:
         param={"metric_type": "BM25", "params": {"drop_ratio_search": 0.2}},
         limit=top_k,
     )
-    results = collection.hybrid_search(
+    results = await _run_milvus_query_io(
+        collection.hybrid_search,
         reqs=[vector_request, bm25_request],
         rerank=WeightedRanker(0.7, 0.3),
         limit=top_k,

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     embed_dimension: int = 384
     milvus_uri: str = "http://milvus:19530"
     milvus_token: str = ""
+    rerank_base_url: str = "http://reranker:80/rerank"
 
 
 settings = Settings()
