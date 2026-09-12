@@ -125,6 +125,20 @@ services:
       timeout: 5s
       retries: 5
 
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command: --model-id BAAI/bge-reranker-base
+    volumes:
+      - reranker_data:/data
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:80/health || exit 1"]
+      interval: 10s
+      start_period: 60s
+      timeout: 5s
+      retries: 5
+
   worker:
     build: ./backend
     command: arq worker_main.WorkerSettings
@@ -163,4 +177,5 @@ volumes:
   etcd_data:
   milvus_data:
   ollama_data:
+  reranker_data:
     
