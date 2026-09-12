@@ -16,4 +16,6 @@ langfuse==4.14.5
 minio==7.2.9
 python-multipart==0.0.12
 langchain-mcp-adapters==0.3.2
+requests==2.34.2
+httpx==0.28.1
 

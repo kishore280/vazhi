@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     minio_secret_key: str = "vazhi_dev_password"
     minio_bucket: str = "vazhi-attachments"
     vazhi_mcp_servers: str = ""
+    embed_model: str = "all-minilm"
+    embed_base_url: str = "http://ollama:11434/v1/embeddings"
+    embed_api_key: str = "ollama"
+    embed_dimension: int = 384
 
 
 settings = Settings()
