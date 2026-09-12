@@ -14,6 +14,7 @@ from pymilvus import (
     utility,
 )
 
+from vazhi.knowledge.chunking.ragflow_like.dispatcher import chunk_markdown
 from vazhi.models.embed import get_embedding_model
 
 _CONNECTION_ALIAS = "default"
@@ -104,11 +105,29 @@ def get_or_create_collection() -> Collection:
     return collection
 
 
-async def add_document(doc_id: str, content: str) -> None:
+async def add_document(
+    doc_id: str,
+    content: str,
+    filename: str = "document.md",
+    preset_id: str = "general",
+    parser_config: dict | None = None,
+) -> None:
+    records = chunk_markdown(
+        content,
+        file_id=doc_id,
+        filename=filename,
+        processing_params={"chunk_preset_id": preset_id, "chunk_parser_config": parser_config or {}},
+    )
+    if not records:
+        return
+
     embed_model = get_embedding_model()
-    vector = (await asyncio.to_thread(embed_model.encode, content))[0]
+    ids = [r["id"] for r in records]
+    contents = [r["content"] for r in records]
+    vectors = await asyncio.to_thread(embed_model.encode, contents)
+
     collection = await asyncio.to_thread(get_or_create_collection)
-    await asyncio.to_thread(collection.insert, [[doc_id], [content], [vector]])
+    await asyncio.to_thread(collection.insert, [ids, contents, vectors])
     await asyncio.to_thread(collection.flush)
 
 
