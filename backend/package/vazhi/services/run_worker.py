@@ -11,6 +11,7 @@ from typing import Any
 from arq.worker import RetryJob
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy.exc import OperationalError
 
