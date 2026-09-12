@@ -131,9 +131,9 @@ services:
     volumes:
       - reranker_data:/data
     ports:
-      - "8081:80"
+      - "18081:80"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:80/health || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 10s
       start_period: 60s
       timeout: 5s
