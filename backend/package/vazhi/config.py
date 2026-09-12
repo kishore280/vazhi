@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     embed_base_url: str = "http://ollama:11434/v1/embeddings"
     embed_api_key: str = "ollama"
     embed_dimension: int = 384
+    milvus_uri: str = "http://milvus:19530"
+    milvus_token: str = ""
 
 
 settings = Settings()

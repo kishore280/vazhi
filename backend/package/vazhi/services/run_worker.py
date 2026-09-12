@@ -19,8 +19,12 @@ from vazhi.agents.middlewares.steer import SteerMiddleware
 from vazhi.agents.middlewares.subagent_task import create_subagent_task_middleware
 from vazhi.agents.middlewares.token_usage import TokenUsageMiddleware
 from vazhi.agents.state import VazhiAgentState
+from vazhi.agents.toolkits.kb_tools import query_kb
 from vazhi.models.chat import get_chat_model
-from vazhi.repositories.agent_run_repository import AgentRunAttemptRepository, AgentRunRepository
+from vazhi.repositories.agent_run_repository import (
+    AgentRunAttemptRepository,
+    AgentRunRepository,
+)
 from vazhi.repositories.conversation_repository import MessageRepository
 from vazhi.services.langfuse_service import build_run_context, flush_langfuse
 from vazhi.storage.postgres.manager import get_postgres_manager
@@ -163,7 +167,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
         middleware.append(TokenUsageMiddleware())
         agent = create_agent(
             model=get_chat_model(),
-            tools=[],
+            tools=[query_kb],
             middleware=middleware,
             context_schema=VazhiContext,
             state_schema=VazhiAgentState,
