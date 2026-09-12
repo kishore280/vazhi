@@ -113,6 +113,19 @@ async def _heartbeat_loop(run_id: str, owner_token: str, ttl_seconds: int, stop:
                 return
 
 
+def _extract_final_ai_text(messages: list) -> str:
+    for message in reversed(messages):
+        if not isinstance(message, AIMessage):
+            continue
+        content = message.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(block.get("text", "") for block in content if isinstance(block, dict))
+        return ""
+    return ""
+
+
 async def execute_agent_run(ctx: dict, run_id: str) -> None:
     from vazhi.config import settings
 
@@ -204,7 +217,6 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
                 message_chunk, _metadata = chunk
                 delta = getattr(message_chunk, "content", "") or ""
                 if delta:
-                    output_text += delta
                     await _publish_event(run_id, "message-delta", {"content": delta})
                 continue
 
@@ -219,6 +231,10 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
                     token_usage = run_usage
         else:
             status = "completed"
+
+        if status == "completed":
+            final_state = await agent.aget_state(config)
+            output_text = _extract_final_ai_text(final_state.values.get("messages", []))
 
         if status == "completed" and output_text:
             async with manager.get_session() as db:
