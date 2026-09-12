@@ -18,6 +18,8 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_healthy
+      milvus:
+        condition: service_healthy
   postgres:
     image: postgres:16
     container_name: postgres-vazhi
@@ -82,6 +84,34 @@ services:
       timeout: 5s
       retries: 5
 
+  milvus:
+    image: milvusdb/milvus:v2.5.6
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: rustfs:9000
+      MINIO_ACCESS_KEY_ID: vazhi
+      MINIO_SECRET_ACCESS_KEY: vazhi_dev_password
+      MILVUS_LOG_LEVEL: error
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      start_period: 90s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      etcd:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+
   worker:
     build: ./backend
     command: arq worker_main.WorkerSettings
@@ -100,6 +130,8 @@ services:
         condition: service_healthy
       rustfs:
         condition: service_healthy
+      milvus:
+        condition: service_healthy
 
   storage-migrator:
     build:
@@ -116,4 +148,5 @@ volumes:
   postgres_data:
   rustfs_data:
   etcd_data:
+  milvus_data:
     
