@@ -2,7 +2,8 @@ import asyncio
 
 import networkx as nx
 
-from vazhi.knowledge.graphs.graph_utils import db_label_for, normalize_entity_name
+from vazhi.knowledge.graphs import entity_store
+from vazhi.knowledge.graphs.graph_utils import db_label_for
 from vazhi.storage.neo4j.manager import get_shared_neo4j_connection, neo4j_read
 
 CYPHER_FETCH_SUBGRAPH = """
@@ -14,17 +15,12 @@ RETURN
   type(rel) AS rel_type
 """
 
+SEED_SIMILARITY_THRESHOLD = 0.3
+
 
 def _find_seed_entities(kb_id: str, query_text: str) -> dict[str, float]:
-    conn = get_shared_neo4j_connection()
-    db_label = db_label_for(kb_id)
-    rows = neo4j_read(
-        conn.driver,
-        f"MATCH (e:Entity:VazhiKB:`{db_label}` {{kb_id: $kb_id}}) RETURN e.entity_id AS entity_id, e.normalized_name AS normalized_name",
-        kb_id=kb_id,
-    )
-    query_lower = normalize_entity_name(query_text)
-    return {row["entity_id"]: 1.0 for row in rows if row["normalized_name"] and row["normalized_name"] in query_lower}
+    scores = entity_store.search_entities(kb_id, query_text, top_k=5)
+    return {entity_id: score for entity_id, score in scores.items() if score > SEED_SIMILARITY_THRESHOLD}
 
 
 def _fetch_subgraph(kb_id: str) -> nx.Graph:

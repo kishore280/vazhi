@@ -373,6 +373,24 @@ class EvaluationRunItem(Base):
         }
 
 
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    kb_id: Mapped[str] = mapped_column(index=True)
+    doc_id: Mapped[str] = mapped_column(index=True)
+    filename: Mapped[str] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kb_id": self.kb_id,
+            "doc_id": self.doc_id,
+            "filename": self.filename,
+            "created_at": _iso(self.created_at),
+        }
+
+
 class SubagentThread(Base):
     __tablename__ = "subagent_threads"
 

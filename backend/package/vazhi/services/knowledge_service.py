@@ -2,6 +2,7 @@ import uuid
 
 from vazhi.knowledge import milvus_store
 from vazhi.repositories.knowledge_base_repository import KnowledgeBaseRepository
+from vazhi.repositories.knowledge_document_repository import KnowledgeDocumentRepository
 from vazhi.storage.postgres.manager import get_postgres_manager
 from vazhi.storage.postgres.models import KnowledgeBase
 
@@ -43,6 +44,18 @@ async def ingest_document(
     await milvus_store.add_document(
         kb_id, doc_id, content, filename=filename, preset_id=preset_id, parser_config=parser_config
     )
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        await KnowledgeDocumentRepository(db).create(kb_id=kb_id, doc_id=doc_id, filename=filename)
+        await db.commit()
+
+
+async def list_documents(*, uid: str, kb_id: str) -> list[dict]:
+    await _get_owned_knowledge_base(uid=uid, kb_id=kb_id)
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        docs = await KnowledgeDocumentRepository(db).list_by_kb(kb_id)
+        return [doc.to_dict() for doc in docs]
 
 
 async def query_knowledge_base(*, uid: str, kb_id: str, query_text: str, top_k: int = 3) -> list[dict]:

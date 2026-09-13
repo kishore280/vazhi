@@ -59,6 +59,15 @@ async def ingest_document(kb_id: str, body: IngestDocumentRequest, uid: str = De
     return {"status": "ingested"}
 
 
+@router.get("/databases/{kb_id}/documents")
+async def list_documents(kb_id: str, uid: str = Depends(require_uid)):
+    try:
+        documents = await knowledge_service.list_documents(uid=uid, kb_id=kb_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"documents": documents}
+
+
 @router.post("/databases/{kb_id}/query")
 async def query_knowledge_base(kb_id: str, body: QueryKnowledgeBaseRequest, uid: str = Depends(require_uid)):
     try:
