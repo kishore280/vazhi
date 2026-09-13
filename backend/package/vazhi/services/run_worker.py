@@ -20,6 +20,7 @@ from vazhi.agents.middlewares.steer import SteerMiddleware
 from vazhi.agents.middlewares.subagent_task import create_subagent_task_middleware
 from vazhi.agents.middlewares.token_usage import TokenUsageMiddleware
 from vazhi.agents.state import VazhiAgentState
+from vazhi.agents.toolkits.graph_tools import query_graph
 from vazhi.agents.toolkits.kb_tools import query_kb
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import (
@@ -181,7 +182,7 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
         middleware.append(TokenUsageMiddleware())
         agent = create_agent(
             model=get_chat_model(),
-            tools=[query_kb],
+            tools=[query_kb, query_graph],
             middleware=middleware,
             context_schema=VazhiContext,
             state_schema=VazhiAgentState,
