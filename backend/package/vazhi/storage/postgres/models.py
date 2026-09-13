@@ -314,6 +314,65 @@ class KnowledgeBase(Base):
         }
 
 
+class EvaluationRun(Base):
+    __tablename__ = "evaluation_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(unique=True, index=True)
+    kb_id: Mapped[str] = mapped_column(index=True)
+    status: Mapped[str] = mapped_column(default="running")
+    overall_score: Mapped[float | None] = mapped_column(default=None)
+    metrics: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    total_items: Mapped[int] = mapped_column(default=0)
+    completed_items: Mapped[int] = mapped_column(default=0)
+    created_by: Mapped[str] = mapped_column()
+    started_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+    completed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+    items: Mapped[list[EvaluationRunItem]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "kb_id": self.kb_id,
+            "status": self.status,
+            "overall_score": self.overall_score,
+            "metrics": self.metrics or {},
+            "total_items": self.total_items,
+            "completed_items": self.completed_items,
+            "started_at": _iso(self.started_at),
+            "completed_at": _iso(self.completed_at),
+        }
+
+
+class EvaluationRunItem(Base):
+    __tablename__ = "evaluation_run_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("evaluation_runs.id"), index=True)
+    item_index: Mapped[int] = mapped_column()
+    query_text: Mapped[str] = mapped_column(Text)
+    gold_chunk_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    gold_answer: Mapped[str] = mapped_column(Text)
+    generated_answer: Mapped[str | None] = mapped_column(Text, default=None)
+    retrieved_chunk_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    metrics: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now_naive)
+
+    run: Mapped[EvaluationRun] = relationship(back_populates="items")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "item_index": self.item_index,
+            "query_text": self.query_text,
+            "gold_chunk_ids": self.gold_chunk_ids or [],
+            "gold_answer": self.gold_answer,
+            "generated_answer": self.generated_answer,
+            "retrieved_chunk_ids": self.retrieved_chunk_ids or [],
+            "metrics": self.metrics or {},
+        }
+
+
 class SubagentThread(Base):
     __tablename__ = "subagent_threads"
 

@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from vazhi.services import knowledge_service
+from vazhi.services import eval_run_service, knowledge_service
 
 from server.auth import require_uid
 
@@ -12,6 +12,10 @@ router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 class CreateKnowledgeBaseRequest(BaseModel):
     name: str
+
+
+class RunEvaluationRequest(BaseModel):
+    num_questions: int = 5
 
 
 class IngestDocumentRequest(BaseModel):
@@ -64,3 +68,20 @@ async def query_knowledge_base(kb_id: str, body: QueryKnowledgeBaseRequest, uid:
     except PermissionError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return {"results": results}
+
+
+@router.post("/databases/{kb_id}/eval")
+async def run_evaluation(kb_id: str, body: RunEvaluationRequest, uid: str = Depends(require_uid)):
+    try:
+        return await eval_run_service.run_evaluation(uid=uid, kb_id=kb_id, num_questions=body.num_questions)
+    except PermissionError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/databases/{kb_id}/eval")
+async def list_evaluation_runs(kb_id: str, uid: str = Depends(require_uid)):
+    try:
+        runs = await eval_run_service.list_evaluation_runs(uid=uid, kb_id=kb_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"runs": runs}

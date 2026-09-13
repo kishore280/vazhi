@@ -107,6 +107,17 @@ def get_or_create_collection() -> Collection:
     return collection
 
 
+async def get_sample_chunks(kb_id: str, limit: int = 5) -> list[dict]:
+    collection = await _run_milvus_query_io(get_or_create_collection)
+    rows = await _run_milvus_query_io(
+        collection.query,
+        expr=f'kb_id == "{kb_id}"',
+        limit=limit,
+        output_fields=["id", "content"],
+    )
+    return [{"chunk_id": row["id"], "content": row["content"]} for row in rows]
+
+
 async def add_document(
     kb_id: str,
     doc_id: str,
@@ -151,7 +162,7 @@ async def search(kb_id: str, query_text: str, top_k: int = 3, mode: str = "hybri
             expr=kb_expr,
             output_fields=["content"],
         )
-        return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
+        return [{"chunk_id": hit.id, "content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
 
     if mode == "keyword":
         results = await _run_milvus_query_io(
@@ -163,7 +174,7 @@ async def search(kb_id: str, query_text: str, top_k: int = 3, mode: str = "hybri
             expr=kb_expr,
             output_fields=["content"],
         )
-        return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
+        return [{"chunk_id": hit.id, "content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
 
     embed_model = get_embedding_model()
     query_vector = (await _run_milvus_query_io(embed_model.encode, query_text))[0]
@@ -188,4 +199,4 @@ async def search(kb_id: str, query_text: str, top_k: int = 3, mode: str = "hybri
         limit=top_k,
         output_fields=["content"],
     )
-    return [{"content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
+    return [{"chunk_id": hit.id, "content": hit.entity.get("content"), "score": hit.distance} for hit in results[0]]
