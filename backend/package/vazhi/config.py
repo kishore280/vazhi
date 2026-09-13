@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     milvus_uri: str = "http://milvus:19530"
     milvus_token: str = ""
     rerank_base_url: str = "http://reranker:80/rerank"
+    neo4j_uri: str = "bolt://graph:7687"
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = "vazhi_dev_password"
 
 
 settings = Settings()

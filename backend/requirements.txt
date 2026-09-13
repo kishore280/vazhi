@@ -19,4 +19,5 @@ langchain-mcp-adapters==0.3.2
 requests==2.34.2
 httpx==0.28.1
 pymilvus==2.5.8
+neo4j==5.28.1
 
