@@ -41,6 +41,7 @@ def add_entity(kb_id: str, entity_id: str, name: str) -> None:
     vector = embed_model.encode(name)[0]
     collection = get_or_create_entity_collection()
     collection.upsert([[entity_id], [kb_id], [name], [vector]])
+    collection.flush()
 
 
 def search_entities(kb_id: str, query_text: str, top_k: int = 5) -> dict[str, float]:
