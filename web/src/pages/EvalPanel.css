@@ -1,0 +1,60 @@
+.eval-panel {
+  padding: 0 24px;
+}
+
+.eval-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.eval-row-selected {
+  background: var(--main-50);
+}
+
+.eval-results h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.eval-results-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.metric-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metric-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--gray-100);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.metric-chip small {
+  color: var(--gray-500);
+}
+
+.metric-chip strong {
+  font-size: 12px;
+}
+
+.judge-reasoning {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}

@@ -1,0 +1,151 @@
+.app-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--main-5);
+  border-right: 1px solid var(--gray-150);
+  padding: 6px 8px;
+  transition: width 0.18s ease;
+  overflow: hidden;
+}
+
+.sidebar-collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.sidebar-collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--main-500);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gray-1000);
+  white-space: nowrap;
+  flex: 1;
+}
+
+.icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--gray-700);
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--gray-50);
+}
+
+.nav-item-active {
+  background: var(--gray-100);
+  font-weight: 600;
+  color: var(--gray-1000);
+}
+
+.nav-item-primary {
+  color: var(--main-600);
+  font-weight: 600;
+}
+
+.nav-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fill {
+  flex: 1;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--gray-150);
+  padding-top: 6px;
+}
+
+.user-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gray-300);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+#app-router-view {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  background: var(--gray-0);
+}

@@ -1,0 +1,100 @@
+.kb-detail {
+  padding-top: 16px;
+}
+
+.ingest-divider {
+  text-align: center;
+  color: var(--gray-500);
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+
+.kb-detail-header {
+  padding: 0 24px 8px;
+}
+
+.back-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--gray-700);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+
+.back-btn:hover {
+  color: var(--gray-1000);
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-panel {
+  padding: 16px var(--page-padding);
+}
+
+.query-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-card {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-150);
+  background: var(--gray-50);
+}
+
+.result-score {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.result-content {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pill-tabs .ant-tabs-tab {
+  height: 30px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 !important;
+}
+
+.pill-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 4px !important;
+}
+
+.pill-tabs .ant-tabs-tab-active {
+  background: var(--gray-100);
+}
+
+.pill-tabs .ant-tabs-ink-bar {
+  display: none;
+}
+
+.pill-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
+.pill-tabs .ant-tabs-nav::before {
+  border-bottom: 1px solid var(--gray-150);
+}
