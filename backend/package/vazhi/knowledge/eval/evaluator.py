@@ -29,7 +29,11 @@ async def evaluate_question(*, uid: str, kb_id: str, query: str, gold_answer: st
     retrieval_metrics = calculate_retrieval_metrics(retrieved_ids, gold_chunk_ids)
 
     judge_result = await judge_correctness(query, gold_answer, generated_answer)
-    item_metrics = {**retrieval_metrics, "judge_score": judge_result["score"]}
+    item_metrics = {
+        **retrieval_metrics,
+        "judge_score": judge_result["score"],
+        "judge_reasoning": judge_result["reasoning"],
+    }
 
     return {
         "query_text": query,

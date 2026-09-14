@@ -7,6 +7,7 @@ from typing import ClassVar
 from arq import cron
 
 from vazhi.config import settings
+from vazhi.knowledge.graphs.service import index_document_into_graph
 from vazhi.services.run_worker import execute_agent_run, reconcile_expired_run_leases
 from vazhi.storage.redis import get_arq_redis_settings, get_async_redis
 
@@ -28,7 +29,7 @@ async def _health_heartbeat_cron(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    functions: ClassVar[list] = [execute_agent_run]
+    functions: ClassVar[list] = [execute_agent_run, index_document_into_graph]
     cron_jobs: ClassVar[list] = [
         cron(_reconcile_cron, second={0, 15, 30, 45}),
         cron(_health_heartbeat_cron, second={0, 10, 20, 30, 40, 50}),

@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from vazhi.storage.postgres.models import EvaluationRun, EvaluationRunItem, utc_now_naive
 
@@ -46,3 +47,11 @@ class EvalRunRepository:
             select(EvaluationRun).where(EvaluationRun.kb_id == kb_id).order_by(EvaluationRun.started_at.desc())
         )
         return list(result.scalars().all())
+
+    async def get_with_items(self, run_id: str) -> EvaluationRun | None:
+        result = await self.db.execute(
+            select(EvaluationRun)
+            .options(selectinload(EvaluationRun.items))
+            .where(EvaluationRun.run_id == run_id)
+        )
+        return result.scalar_one_or_none()

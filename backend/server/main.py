@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from vazhi.storage.postgres.manager import get_postgres_manager
 
-from server.routers import agent_router, attachment_router, knowledge_router, system_router
+from server.routers import agent_router, attachment_router, graph_router, knowledge_router, system_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,3 +36,4 @@ app.include_router(system_router.router)
 app.include_router(agent_router.router)
 app.include_router(attachment_router.router)
 app.include_router(knowledge_router.router)
+app.include_router(graph_router.router)

@@ -57,3 +57,15 @@ async def list_evaluation_runs(*, uid: str, kb_id: str) -> list[dict]:
     async with manager.get_session() as db:
         runs = await EvalRunRepository(db).list_by_kb(kb_id)
         return [r.to_dict() for r in runs]
+
+
+async def get_evaluation_run(*, uid: str, kb_id: str, run_id: str) -> dict | None:
+    await _get_owned_knowledge_base(uid=uid, kb_id=kb_id)
+    manager = get_postgres_manager()
+    async with manager.get_session() as db:
+        run = await EvalRunRepository(db).get_with_items(run_id)
+        if run is None or run.kb_id != kb_id:
+            return None
+        result = run.to_dict()
+        result["items"] = [item.to_dict() for item in sorted(run.items, key=lambda i: i.item_index)]
+        return result

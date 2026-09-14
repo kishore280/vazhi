@@ -21,7 +21,7 @@ from vazhi.agents.middlewares.subagent_task import create_subagent_task_middlewa
 from vazhi.agents.middlewares.token_usage import TokenUsageMiddleware
 from vazhi.agents.state import VazhiAgentState
 from vazhi.agents.toolkits.graph_tools import query_graph
-from vazhi.agents.toolkits.kb_tools import query_kb
+from vazhi.agents.toolkits.kb_tools import list_kbs, query_kb
 from vazhi.models.chat import get_chat_model
 from vazhi.repositories.agent_run_repository import (
     AgentRunAttemptRepository,
@@ -182,7 +182,11 @@ async def execute_agent_run(ctx: dict, run_id: str) -> None:
         middleware.append(TokenUsageMiddleware())
         agent = create_agent(
             model=get_chat_model(),
-            tools=[query_kb, query_graph],
+            system_prompt=(
+                "You can search the user's knowledge bases with query_kb and query_graph. "
+                "Call list_kbs first if you don't already know a kb_id."
+            ),
+            tools=[list_kbs, query_kb, query_graph],
             middleware=middleware,
             context_schema=VazhiContext,
             state_schema=VazhiAgentState,

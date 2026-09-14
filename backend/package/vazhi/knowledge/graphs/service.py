@@ -94,3 +94,71 @@ async def index_chunk_into_graph(kb_id: str, chunk_id: str, file_id: str, chunk_
         if name:
             await asyncio.to_thread(entity_store.add_entity, kb_id, entity_id, name)
     return len(relations)
+
+
+GRAPH_EXTRACTION_CONCURRENCY = 5
+
+
+async def _extraction_worker(queue: asyncio.Queue, write_queue: asyncio.Queue) -> None:
+    while True:
+        record = await queue.get()
+        if record is None:
+            queue.task_done()
+            break
+        relations = await extract_triples(record["content"])
+        await write_queue.put((record, relations))
+        queue.task_done()
+
+
+async def _write_worker(kb_id: str, write_queue: asyncio.Queue, result: dict) -> None:
+    conn = get_shared_neo4j_connection()
+    while True:
+        item = await write_queue.get()
+        if item is None:
+            write_queue.task_done()
+            break
+        record, relations = item
+        written_entities = await asyncio.to_thread(
+            _write_chunk_and_triples,
+            conn.driver,
+            kb_id,
+            record["chunk_id"],
+            record["file_id"],
+            record["chunk_index"],
+            record["content"],
+            relations,
+        )
+        for entity_id, name in written_entities:
+            if name:
+                await asyncio.to_thread(entity_store.add_entity, kb_id, entity_id, name)
+        result["total_relations"] += len(relations)
+        write_queue.task_done()
+
+
+async def index_document_into_graph(
+    ctx: dict, kb_id: str, records: list[dict], concurrency: int = GRAPH_EXTRACTION_CONCURRENCY
+) -> int:
+    if not records:
+        return 0
+
+    extraction_queue: asyncio.Queue = asyncio.Queue()
+    write_queue: asyncio.Queue = asyncio.Queue()
+    for record in records:
+        extraction_queue.put_nowait(record)
+
+    worker_count = max(1, min(concurrency, len(records)))
+    result = {"total_relations": 0}
+
+    extraction_workers = [
+        asyncio.create_task(_extraction_worker(extraction_queue, write_queue)) for _ in range(worker_count)
+    ]
+    write_task = asyncio.create_task(_write_worker(kb_id, write_queue, result))
+
+    for _ in range(worker_count):
+        extraction_queue.put_nowait(None)
+    await asyncio.gather(*extraction_workers)
+
+    write_queue.put_nowait(None)
+    await write_task
+
+    return result["total_relations"]

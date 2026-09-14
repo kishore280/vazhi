@@ -125,7 +125,7 @@ async def add_document(
     filename: str = "document.md",
     preset_id: str = "general",
     parser_config: dict | None = None,
-) -> None:
+) -> list[dict]:
     records = chunk_markdown(
         content,
         file_id=doc_id,
@@ -133,7 +133,7 @@ async def add_document(
         processing_params={"chunk_preset_id": preset_id, "chunk_parser_config": parser_config or {}},
     )
     if not records:
-        return
+        return []
 
     embed_model = get_embedding_model()
     ids = [r["id"] for r in records]
@@ -144,6 +144,7 @@ async def add_document(
     collection = await asyncio.to_thread(get_or_create_collection)
     await asyncio.to_thread(collection.insert, [ids, kb_ids, contents, vectors])
     await asyncio.to_thread(collection.flush)
+    return records
 
 
 async def search(kb_id: str, query_text: str, top_k: int = 3, mode: str = "hybrid") -> list[dict]:

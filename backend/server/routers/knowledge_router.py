@@ -1,8 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from vazhi.knowledge.parsers.pdf import extract_text_from_pdf
 from vazhi.services import eval_run_service, knowledge_service
 
 from server.auth import require_uid
@@ -59,6 +60,28 @@ async def ingest_document(kb_id: str, body: IngestDocumentRequest, uid: str = De
     return {"status": "ingested"}
 
 
+@router.post("/databases/{kb_id}/documents/upload")
+async def upload_document(kb_id: str, file: UploadFile, uid: str = Depends(require_uid)):
+    filename = file.filename or "document"
+    raw = await file.read()
+
+    if filename.lower().endswith(".pdf"):
+        content = extract_text_from_pdf(raw)
+    else:
+        content = raw.decode("utf-8", errors="replace")
+
+    if not content.strip():
+        raise HTTPException(status_code=422, detail="No extractable text found in file")
+
+    try:
+        await knowledge_service.ingest_document(
+            uid=uid, kb_id=kb_id, doc_id=uuid.uuid4().hex, content=content, filename=filename
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"status": "ingested"}
+
+
 @router.get("/databases/{kb_id}/documents")
 async def list_documents(kb_id: str, uid: str = Depends(require_uid)):
     try:
@@ -94,3 +117,14 @@ async def list_evaluation_runs(kb_id: str, uid: str = Depends(require_uid)):
     except PermissionError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return {"runs": runs}
+
+
+@router.get("/databases/{kb_id}/eval/{run_id}")
+async def get_evaluation_run(kb_id: str, run_id: str, uid: str = Depends(require_uid)):
+    try:
+        run = await eval_run_service.get_evaluation_run(uid=uid, kb_id=kb_id, run_id=run_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    if run is None:
+        raise HTTPException(status_code=404, detail="Evaluation run not found")
+    return run

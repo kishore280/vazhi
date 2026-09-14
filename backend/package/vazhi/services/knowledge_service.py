@@ -3,6 +3,7 @@ import uuid
 from vazhi.knowledge import milvus_store
 from vazhi.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from vazhi.repositories.knowledge_document_repository import KnowledgeDocumentRepository
+from vazhi.services.run_dispatch import enqueue_graph_indexing
 from vazhi.storage.postgres.manager import get_postgres_manager
 from vazhi.storage.postgres.models import KnowledgeBase
 
@@ -41,9 +42,11 @@ async def ingest_document(
     parser_config: dict | None = None,
 ) -> None:
     await _get_owned_knowledge_base(uid=uid, kb_id=kb_id)
-    await milvus_store.add_document(
+    records = await milvus_store.add_document(
         kb_id, doc_id, content, filename=filename, preset_id=preset_id, parser_config=parser_config
     )
+    if records:
+        await enqueue_graph_indexing(kb_id, records)
     manager = get_postgres_manager()
     async with manager.get_session() as db:
         await KnowledgeDocumentRepository(db).create(kb_id=kb_id, doc_id=doc_id, filename=filename)

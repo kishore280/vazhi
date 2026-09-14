@@ -2,7 +2,17 @@ from langchain_core.tools import tool
 from langgraph.prebuilt.tool_node import ToolRuntime
 
 from vazhi.models.rerank import get_reranker
-from vazhi.services.knowledge_service import query_knowledge_base
+from vazhi.services.knowledge_service import list_knowledge_bases, query_knowledge_base
+
+
+@tool
+async def list_kbs(runtime: ToolRuntime) -> str:
+    """List the knowledge bases available to search. Call this first if you don't already know a kb_id."""
+    uid = str(getattr(runtime.context, "uid", "") or "")
+    kbs = await list_knowledge_bases(uid=uid)
+    if not kbs:
+        return "No knowledge bases available."
+    return "\n".join(f"kb_id={kb.kb_id} name={kb.name!r}" for kb in kbs)
 
 
 @tool
